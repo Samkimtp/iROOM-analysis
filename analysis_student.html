@@ -5,94 +5,131 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iROOM Analysis - Student</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; touch-action: manipulation; }
-        .active-ring { ring: 4px solid #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
-        .metro-flash { background-color: rgba(59, 130, 246, 0.5) !important; transition: background-color 0.05s ease-out; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; overflow: hidden; }
+        .canvas-container { position: relative; width: 100%; height: 120px; background: #1E293B; border-radius: 1.5rem; overflow: hidden; }
+        #waveCanvas { width: 100%; height: 100%; }
+        .pitch-indicator { transition: background-color 0.2s ease; }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
-<div id="startOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-10 text-center">
-    <button onclick="initEngine()" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-6 px-10 rounded-[2.5rem] text-xl shadow-2xl transition-all transform active:scale-95">
-        START iROOM ENGINE 🎺
-    </button>
+<div id="startOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-10 text-center">
+    <button onclick="initEngine()" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-6 px-10 rounded-[2.5rem] text-xl shadow-2xl transition-all">START iROOM ENGINE 🎺</button>
 </div>
-<div class="w-full max-w-[480px] space-y-6">
-    <div class="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-2xl border border-slate-800">
+
+<div class="w-full max-w-[480px] space-y-4">
+    <div class="canvas-container shadow-inner border border-slate-700">
+        <canvas id="waveCanvas"></canvas>
+    </div>
+
+    <div id="mainCard" class="pitch-indicator bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl border border-slate-800">
         <div class="flex justify-between items-center mb-2">
-            <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Live Syncing...</span>
+            <span id="statusLabel" class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Perfect Pitch</span>
             <div id="connIndicator" class="w-2 h-2 rounded-full bg-slate-700"></div>
         </div>
-        <div class="flex items-baseline gap-1">
-            <div id="accuracyDisplay" class="text-6xl font-black tracking-tighter">00</div>
-            <div class="text-xl font-bold text-blue-400">%</div>
+        <div class="flex items-center justify-between">
+            <div class="flex items-baseline gap-1">
+                <div id="accuracyDisplay" class="text-6xl font-black tracking-tighter text-white">00</div>
+                <div class="text-xl font-bold text-blue-400">%</div>
+            </div>
+            <div class="text-right">
+                <div id="noteDisplay" class="text-5xl font-black text-white leading-none">--</div>
+                <div id="centsDisplay" class="text-xs font-bold text-slate-400 uppercase mt-1">0 cents</div>
+            </div>
         </div>
     </div>
+
     <div class="grid grid-cols-2 gap-4">
-        <div id="metroArea" onclick="toggleMetronome()" class="bg-white p-6 rounded-[2rem] shadow-sm cursor-pointer text-slate-900">
-            <span class="text-[10px] font-black text-blue-600 uppercase mb-4 block italic">METRONOME</span>
-            <div id="bpmDisplay" class="text-5xl font-black mb-4 tracking-tighter">120</div>
+        <div id="metroArea" onclick="toggleMetronome()" class="bg-white p-6 rounded-[2rem] text-slate-900 shadow-xl cursor-pointer">
+            <span class="text-[10px] font-black text-blue-600 uppercase block italic mb-2">METRONOME</span>
+            <div id="bpmDisplay" class="text-4xl font-black tracking-tighter">120</div>
         </div>
-        <div id="tunerArea" onclick="toggleTuner()" class="bg-slate-900 p-6 rounded-[2rem] text-white cursor-pointer border border-slate-800">
-            <span class="text-[10px] font-black text-blue-400 uppercase mb-4 block italic">TUNER</span>
-            <div id="noteDisplay" class="text-4xl font-black mb-1">--</div>
-            <div id="octaveDisplay" class="text-[10px] font-bold text-blue-400 uppercase tracking-tight">Ready...</div>
+        <div class="bg-slate-800 p-6 rounded-[2rem] border border-slate-700">
+            <span class="text-[10px] font-black text-slate-400 uppercase block italic mb-2">FREQUENCY</span>
+            <div id="hzDisplay" class="text-3xl font-black tracking-tighter text-blue-400">0.0<span class="text-xs ml-1 uppercase">Hz</span></div>
         </div>
     </div>
 </div>
+
 <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
-    let audioCtx, tunerStream, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, nextTickTime = 0, metroTimer, currentPitch = 0, currentNote = "--", scores = [], lastOnset = 0;
+    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, nextTickTime = 0, currentPitch = 0, currentNote = "--", cents = 0;
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    
+    let canvas, ctx;
+
     async function initEngine() {
-        try {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') await audioCtx.resume();
-            tunerStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const src = audioCtx.createMediaStreamSource(tunerStream); analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser);
-            document.getElementById('startOverlay').classList.add('hidden'); updateLoop(); lucide.createIcons();
-        } catch (e) { alert("마이크 권한 필요!"); }
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const src = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser);
+        document.getElementById('startOverlay').classList.add('hidden');
+        canvas = document.getElementById('waveCanvas'); ctx = canvas.getContext('2d');
+        resizeCanvas(); drawWave(); updateLoop();
     }
-    
+
+    function resizeCanvas() { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }
+
+    function drawWave() {
+        requestAnimationFrame(drawWave);
+        const timeData = new Float32Array(analyser.frequencyBinCount);
+        analyser.getFloatTimeDomainData(timeData);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 3; ctx.strokeStyle = '#3b82f6'; ctx.beginPath();
+        let sliceWidth = canvas.width / timeData.length, x = 0;
+        for(let i=0; i<timeData.length; i++) {
+            let v = timeData[i] * 0.8, y = (v + 1) / 2 * canvas.height;
+            if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y); x += sliceWidth;
+        }
+        ctx.stroke();
+    }
+
     function updateLoop() {
-        analyser.getFloatTimeDomainData(buf); let rms = 0; for(let i=0; i<buf.length; i++) rms += buf[i]*buf[i]; let vol = Math.sqrt(rms/buf.length);
-        if(vol > 0.05) {
-            if (isMetroOn && (audioCtx.currentTime - lastOnset > 0.1)) { calculateAccuracy(audioCtx.currentTime); lastOnset = audioCtx.currentTime; }
-            let p = autoCorrelate(buf, audioCtx.sampleRate);
-            if(p !== -1) {
-                currentPitch = Math.round(p); let nNum = 12 * (Math.log(p/442)/Math.log(2)) + 69; currentNote = noteStrings[Math.round(nNum)%12];
-                document.getElementById('noteDisplay').innerText = currentNote; document.getElementById('octaveDisplay').innerText = `${currentNote}${Math.floor(Math.round(nNum)/12)-1}`;
-            }
-        } requestAnimationFrame(updateLoop);
+        analyser.getFloatTimeDomainData(buf);
+        let p = autoCorrelate(buf, audioCtx.sampleRate);
+        if(p !== -1) {
+            currentPitch = Math.round(p);
+            let nNum = 12 * (Math.log(p/440)/Math.log(2)) + 69;
+            let rounded = Math.round(nNum);
+            currentNote = noteStrings[rounded % 12];
+            cents = Math.round((nNum - rounded) * 100);
+            
+            updateVisuals(cents);
+            document.getElementById('hzDisplay').innerHTML = `${currentPitch}<span class="text-xs ml-1 uppercase">Hz</span>`;
+            document.getElementById('noteDisplay').innerText = currentNote;
+            document.getElementById('centsDisplay').innerText = `${cents > 0 ? '+' : ''}${cents} cents`;
+        }
+        requestAnimationFrame(updateLoop);
     }
-    
-    function toggleMetronome() { isMetroOn = !isMetroOn; const area = document.getElementById('metroArea'); if(isMetroOn) { nextTickTime = audioCtx.currentTime; metroScheduler(); area.classList.add('active-ring'); } else { clearTimeout(metroTimer); area.classList.remove('active-ring'); } }
-    function metroScheduler(){ while(nextTickTime<audioCtx.currentTime+0.1){ playTick(nextTickTime); nextTickTime+=60.0/bpm; } metroTimer=setTimeout(metroScheduler, 25); }
-    function playTick(t){
-        const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.frequency.value=1000; g.gain.exponentialRampToValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.05); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+0.05);
-        setTimeout(() => { const el = document.getElementById('metroArea'); el.classList.add('metro-flash'); setTimeout(() => el.classList.remove('metro-flash'), 100); }, (t - audioCtx.currentTime)*1000);
+
+    function updateVisuals(c) {
+        const card = document.getElementById('mainCard');
+        const label = document.getElementById('statusLabel');
+        if (Math.abs(c) < 10) { 
+            card.style.backgroundColor = '#064e3b'; label.innerText = "Perfect Pitch"; 
+        } else if (c >= 10) { 
+            card.style.backgroundColor = '#78350f'; label.innerText = "Too High (Sharp)";
+        } else { 
+            card.style.backgroundColor = '#1e3a8a'; label.innerText = "Too Low (Flat)";
+        }
     }
-    
-    function calculateAccuracy(t) {
-        const beatDur = 60.0 / bpm; const diff = Math.min((t - nextTickTime + beatDur) % beatDur, beatDur - ((t - nextTickTime + beatDur) % beatDur));
-        let score = Math.max(0, 100 - (diff * 1000 / 1.5)); scores.push(score); if(scores.length > 8) scores.shift();
-        document.getElementById('accuracyDisplay').innerText = Math.round(scores.reduce((a,b)=>a+b)/scores.length).toString().padStart(2,'0');
-    }
-    
+
     function autoCorrelate(buf, sr) {
-        let rms = 0; for (let i=0; i<buf.length; i++) rms += buf[i]*buf[i]; if (Math.sqrt(rms/buf.length) < 0.01) return -1;
-        let c = new Float32Array(buf.length); for (let i=0; i<buf.length; i++) for (let j=0; j<buf.length-i; j++) c[i] += buf[j]*buf[j+i];
-        let d = 0; while (c[d] > c[d+1]) d++; let maxval = -1, maxpos = -1; for (let i=d; i<buf.length; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } } return sr / maxpos;
+        let rms = 0; for (let i=0; i<buf.length; i++) rms += buf[i]*buf[i];
+        if (Math.sqrt(rms/buf.length) < 0.02) return -1;
+        let c = new Float32Array(buf.length);
+        for (let i=0; i<buf.length; i++) for (let j=0; j<buf.length-i; j++) c[i] += buf[j]*buf[j+i];
+        let d = 0; while (c[d] > c[d+1]) d++;
+        let maxval = -1, maxpos = -1;
+        for (let i=d; i<buf.length; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } }
+        return sr / maxpos;
     }
-    
-    function toggleTuner() { document.getElementById('tunerArea').classList.toggle('active-ring'); }
-    
-    // ⚡ 초저지연 전송: 0.8초(800ms)
+
+    function toggleMetronome() { isMetroOn = !isMetroOn; document.getElementById('metroArea').classList.toggle('ring-4'); }
+
     function syncStatus() {
         if (!audioCtx) return;
-        const data = { b: bpm, n: currentNote, p: currentPitch, a: document.getElementById('accuracyDisplay').innerText };
+        const data = { b: bpm, n: currentNote, p: currentPitch, a: document.getElementById('accuracyDisplay').innerText, c: cents };
         const script = document.createElement('script');
         script.src = `${GAS_URL}?mode=update_status&user=S1&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
         document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 500);
