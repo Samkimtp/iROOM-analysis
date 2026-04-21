@@ -2,59 +2,74 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>iROOM Monitoring - Teacher</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iROOM Analysis - Teacher</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; }
+    </style>
 </head>
-<body class="bg-slate-50 p-10">
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-black text-slate-900 mb-8 italic">iROOM REMOTE MONITORING</h1>
-        
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100">
-                <p class="text-xs font-bold text-blue-600 uppercase mb-2">Student Metronome</p>
-                <div class="flex items-center gap-4">
-                    <div id="m-indicator" class="w-4 h-4 rounded-full bg-slate-200"></div>
-                    <div id="m-bpm" class="text-5xl font-black text-slate-800">--</div>
-                    <span class="text-xl font-bold text-slate-400">BPM</span>
-                </div>
+<body class="flex justify-center items-center min-h-screen p-6">
+    <div class="w-full max-w-[480px] space-y-6">
+        <div class="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl border border-blue-500/30">
+            <div class="flex justify-between items-center mb-4">
+                <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Student Real-time Accuracy</span>
+                <div id="m-indicator" class="w-3 h-3 rounded-full bg-slate-700 transition-colors"></div>
             </div>
+            <div class="flex items-baseline gap-1">
+                <div id="m-acc" class="text-7xl font-black tracking-tighter text-white">00</div>
+                <div class="text-2xl font-bold text-blue-400">%</div>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-4 font-bold uppercase tracking-widest">Remote Monitoring Active</p>
+        </div>
 
-            <div class="bg-slate-900 p-8 rounded-[2rem] shadow-xl text-white">
-                <p class="text-xs font-bold text-blue-400 uppercase mb-2">Current Pitch</p>
-                <div id="m-note" class="text-5xl font-black text-white">--</div>
-                <p id="m-pitch" class="text-xs text-slate-500 mt-2">Waiting for data...</p>
+        <div class="grid grid-cols-2 gap-4">
+            <div class="bg-white p-6 rounded-[2.5rem] shadow-xl">
+                <span class="text-[10px] font-black text-blue-600 uppercase mb-2 block italic">Student BPM</span>
+                <div id="m-bpm" class="text-5xl font-black text-slate-800 tracking-tighter">--</div>
             </div>
+            <div class="bg-slate-800 p-6 rounded-[2.5rem] text-white shadow-xl">
+                <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic">Current Note</span>
+                <div id="m-note" class="text-5xl font-black text-white tracking-tighter">--</div>
+                <p id="m-pitch" class="text-[8px] text-slate-500 font-bold mt-1">Waiting...</p>
+            </div>
+        </div>
 
-            <div class="bg-blue-600 p-8 rounded-[2rem] shadow-xl text-white">
-                <p class="text-xs font-bold text-blue-200 uppercase mb-2">Avg. Accuracy</p>
-                <div class="flex items-baseline gap-1">
-                    <div id="m-acc" class="text-5xl font-black text-white">00</div>
-                    <div class="text-xl font-bold text-blue-200">%</div>
-                </div>
-            </div>
+        <div class="text-center">
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] animate-pulse">Monitoring Student Performance...</p>
         </div>
     </div>
 
     <script>
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzOxGjLQX1nZZODTLK4AuRkENvx2ShNkgJFtvaKd1RzyBy2MqGWNzyxBKZ5geRQG3fa/exec";
-        
-        function fetchStudentStatus() {
+
+        function fetchStatus() {
             const script = document.createElement('script');
-            script.src = `${GAS_URL}?mode=get_status&callback=cb_monitor`;
+            script.src = `${GAS_URL}?mode=get_status&callback=cb_monitor&_cb=${Date.now()}`;
             document.head.appendChild(script);
-            document.head.removeChild(script);
+            setTimeout(() => document.head.removeChild(script), 1000);
         }
 
         window.cb_monitor = (res) => {
-            if(!res.data) return;
+            if(!res || !res.data) return;
             const s = JSON.parse(res.data);
-            document.getElementById('m-bpm').innerText = s.bpm;
-            document.getElementById('m-note').innerText = s.note;
-            document.getElementById('m-acc').innerText = s.accuracy;
-            document.getElementById('m-indicator').style.backgroundColor = s.isMetro ? '#22c55e' : '#cbd5e1';
+            
+            // 데이터 매핑
+            document.getElementById('m-bpm').innerText = s.bpm || "--";
+            document.getElementById('m-note').innerText = s.note || "--";
+            document.getElementById('m-acc').innerText = (s.acc || "00").padStart(2, '0');
+            document.getElementById('m-pitch').innerText = s.pitch ? s.pitch + " Hz" : "Waiting...";
+            
+            // 메트로놈 활성화 표시
+            const ind = document.getElementById('m-indicator');
+            ind.style.backgroundColor = s.isMetro ? '#3b82f6' : '#334155';
+            if(s.isMetro) ind.classList.add('animate-pulse');
+            else ind.classList.remove('animate-pulse');
         };
 
-        setInterval(fetchStudentStatus, 3000);
+        // 3초마다 학생 데이터 가져오기
+        setInterval(fetchStatus, 3000);
     </script>
 </body>
 </html>
