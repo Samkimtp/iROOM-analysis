@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>iROOM Monitoring - Teacher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 p-10">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-black text-slate-900 mb-8 italic">iROOM REMOTE MONITORING</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100">
+                <p class="text-xs font-bold text-blue-600 uppercase mb-2">Student Metronome</p>
+                <div class="flex items-center gap-4">
+                    <div id="m-indicator" class="w-4 h-4 rounded-full bg-slate-200"></div>
+                    <div id="m-bpm" class="text-5xl font-black text-slate-800">--</div>
+                    <span class="text-xl font-bold text-slate-400">BPM</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 p-8 rounded-[2rem] shadow-xl text-white">
+                <p class="text-xs font-bold text-blue-400 uppercase mb-2">Current Pitch</p>
+                <div id="m-note" class="text-5xl font-black text-white">--</div>
+                <p id="m-pitch" class="text-xs text-slate-500 mt-2">Waiting for data...</p>
+            </div>
+
+            <div class="bg-blue-600 p-8 rounded-[2rem] shadow-xl text-white">
+                <p class="text-xs font-bold text-blue-200 uppercase mb-2">Avg. Accuracy</p>
+                <div class="flex items-baseline gap-1">
+                    <div id="m-acc" class="text-5xl font-black text-white">00</div>
+                    <div class="text-xl font-bold text-blue-200">%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzOxGjLQX1nZZODTLK4AuRkENvx2ShNkgJFtvaKd1RzyBy2MqGWNzyxBKZ5geRQG3fa/exec";
+        
+        function fetchStudentStatus() {
+            const script = document.createElement('script');
+            script.src = `${GAS_URL}?mode=get_status&callback=cb_monitor`;
+            document.head.appendChild(script);
+            document.head.removeChild(script);
+        }
+
+        window.cb_monitor = (res) => {
+            if(!res.data) return;
+            const s = JSON.parse(res.data);
+            document.getElementById('m-bpm').innerText = s.bpm;
+            document.getElementById('m-note').innerText = s.note;
+            document.getElementById('m-acc').innerText = s.accuracy;
+            document.getElementById('m-indicator').style.backgroundColor = s.isMetro ? '#22c55e' : '#cbd5e1';
+        };
+
+        setInterval(fetchStudentStatus, 3000);
+    </script>
+</body>
+</html>
