@@ -29,7 +29,7 @@
     </div>
 </div>
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzlSJTwWl1b9YGHKiCQsdFi5poIufYHvSVfrWDe_10GXmr_lHm3ML0sK6N3fmwtG-aHKQ/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
     function fetchStudentData() {
         const script = document.createElement('script'); script.src = `${GAS_URL}?mode=get_status&user=S1&callback=cb_monitor&_ts=${Date.now()}`;
         document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 1000);
