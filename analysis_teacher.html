@@ -9,15 +9,15 @@
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; }
         .data-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .status-pulse { animation: pulse 2s infinite; }
+        .status-pulse { animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
 <div class="w-full max-w-[480px] space-y-6">
     <div class="flex justify-between items-center px-2">
-        <div><h1 class="text-2xl font-black italic tracking-tighter text-blue-400">iROOM MONITOR</h1><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Teacher Mode</p></div>
-        <div class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full"><div id="connIndicator" class="w-2 h-2 rounded-full bg-red-500"></div><span id="connText" class="text-[10px] font-bold uppercase">Offline</span></div>
+        <div><h1 class="text-2xl font-black italic tracking-tighter text-blue-400">iROOM MONITOR</h1><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Real-time Stream</p></div>
+        <div class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full"><div id="connIndicator" class="w-2 h-2 rounded-full bg-red-500"></div><span id="connText" class="text-[10px] font-bold uppercase">Connecting</span></div>
     </div>
     <div class="data-card rounded-[2.5rem] p-8 shadow-2xl">
         <span class="text-[10px] font-black text-blue-400 uppercase italic mb-2 block">Student Accuracy</span>
@@ -30,10 +30,13 @@
 </div>
 <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
+    
+    // ⚡ 수신 주기 최적화: 0.8초(800ms)
     function fetchStudentData() {
         const script = document.createElement('script'); script.src = `${GAS_URL}?mode=get_status&user=S1&callback=cb_monitor&_ts=${Date.now()}`;
         document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 1000);
     }
+    
     window.cb_monitor = function(res) {
         if (!res || !res.data) return;
         const s = JSON.parse(res.data);
@@ -44,7 +47,8 @@
         document.getElementById('connIndicator').className = "w-2 h-2 rounded-full bg-green-500 status-pulse";
         document.getElementById('connText').innerText = "Live";
     };
-    setInterval(fetchStudentData, 3000); fetchStudentData();
+    
+    setInterval(fetchStudentData, 800); fetchStudentData();
 </script>
 </body>
 </html>
