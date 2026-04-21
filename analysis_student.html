@@ -22,7 +22,7 @@
 <div class="w-full max-w-[480px] space-y-6">
     <div class="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-2xl border border-slate-800">
         <div class="flex justify-between items-center mb-2">
-            <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Analysis Accuracy</span>
+            <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Live Syncing...</span>
             <div id="connIndicator" class="w-2 h-2 rounded-full bg-slate-700"></div>
         </div>
         <div class="flex items-baseline gap-1">
@@ -44,7 +44,7 @@
 </div>
 <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
-    let audioCtx, tunerStream, analyser, buf = new Float32Array(2048), isMetroOn = false, isTunerOn = false, bpm = 120, nextTickTime = 0, metroTimer, currentPitch = 0, currentNote = "--", scores = [], lastOnset = 0;
+    let audioCtx, tunerStream, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, nextTickTime = 0, metroTimer, currentPitch = 0, currentNote = "--", scores = [], lastOnset = 0;
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     
     async function initEngine() {
@@ -53,7 +53,7 @@
             tunerStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const src = audioCtx.createMediaStreamSource(tunerStream); analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser);
             document.getElementById('startOverlay').classList.add('hidden'); updateLoop(); lucide.createIcons();
-        } catch (e) { alert("마이크 권한이 필요합니다!"); }
+        } catch (e) { alert("마이크 권한 필요!"); }
     }
     
     function updateLoop() {
@@ -62,7 +62,7 @@
             if (isMetroOn && (audioCtx.currentTime - lastOnset > 0.1)) { calculateAccuracy(audioCtx.currentTime); lastOnset = audioCtx.currentTime; }
             let p = autoCorrelate(buf, audioCtx.sampleRate);
             if(p !== -1) {
-                currentPitch = p; let nNum = 12 * (Math.log(p/442)/Math.log(2)) + 69; currentNote = noteStrings[Math.round(nNum)%12];
+                currentPitch = Math.round(p); let nNum = 12 * (Math.log(p/442)/Math.log(2)) + 69; currentNote = noteStrings[Math.round(nNum)%12];
                 document.getElementById('noteDisplay').innerText = currentNote; document.getElementById('octaveDisplay').innerText = `${currentNote}${Math.floor(Math.round(nNum)/12)-1}`;
             }
         } requestAnimationFrame(updateLoop);
@@ -87,16 +87,17 @@
         let d = 0; while (c[d] > c[d+1]) d++; let maxval = -1, maxpos = -1; for (let i=d; i<buf.length; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } } return sr / maxpos;
     }
     
-    function toggleTuner() { isTunerOn = !isTunerOn; document.getElementById('tunerArea').classList.toggle('active-ring', isTunerOn); }
+    function toggleTuner() { document.getElementById('tunerArea').classList.toggle('active-ring'); }
     
-    // ⚡ 전송 주기 최적화: 1초(1000ms)
+    // ⚡ 초저지연 전송: 0.8초(800ms)
     function syncStatus() {
         if (!audioCtx) return;
-        const data = { bpm: bpm, isMetro: isMetroOn, note: currentNote, pitch: Math.round(currentPitch), acc: document.getElementById('accuracyDisplay').innerText };
-        const script = document.createElement('script'); script.src = `${GAS_URL}?mode=update_status&user=S1&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void`;
-        document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 1000);
+        const data = { b: bpm, n: currentNote, p: currentPitch, a: document.getElementById('accuracyDisplay').innerText };
+        const script = document.createElement('script');
+        script.src = `${GAS_URL}?mode=update_status&user=S1&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
+        document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 500);
     }
-    setInterval(syncStatus, 1000); window.cb_void = () => {};
+    setInterval(syncStatus, 800); window.cb_void = () => {};
 </script>
 </body>
 </html>
