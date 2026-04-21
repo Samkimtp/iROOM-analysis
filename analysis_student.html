@@ -6,17 +6,10 @@
     <title>iROOM Analysis - Student</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; touch-action: manipulation; color: white; }
-        input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #334155; border-radius: 10px; }
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
-            background: #3b82f6; margin-top: -6px; cursor: pointer;
-        }
+        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; touch-action: manipulation; }
         .active-ring { ring: 4px solid #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
         .metro-flash { background-color: rgba(59, 130, 246, 0.5) !important; transition: background-color 0.05s ease-out; }
     </style>
@@ -24,6 +17,12 @@
 <body class="flex justify-center items-center min-h-screen p-6">
 
 <div class="w-full max-w-[480px] space-y-6">
+    <div id="startOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-10 text-center">
+        <button onclick="initEngine()" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-6 px-10 rounded-[2.5rem] text-xl shadow-2xl transition-all transform active:scale-95">
+            START iROOM ENGINE 🎺
+        </button>
+    </div>
+
     <div class="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-2xl border border-slate-800">
         <div class="flex justify-between items-center mb-2">
             <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Analysis Accuracy</span>
@@ -33,33 +32,25 @@
             <div id="accuracyDisplay" class="text-6xl font-black tracking-tighter">00</div>
             <div class="text-xl font-bold text-blue-400">%</div>
         </div>
-        <div class="mt-4 w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-            <div id="timingBar" class="w-0 h-full bg-blue-500 transition-all duration-150"></div>
-        </div>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
         <div id="metroArea" onclick="toggleMetronome()" class="bg-white p-6 rounded-[2rem] shadow-sm cursor-pointer transition-all active:scale-95 text-slate-900">
             <span class="text-[10px] font-black text-blue-600 uppercase mb-4 block italic">METRONOME</span>
             <div id="bpmDisplay" class="text-5xl font-black mb-4 tracking-tighter">120</div>
-            <input type="range" id="bpmSlider" min="40" max="240" value="120" onclick="event.stopPropagation()" oninput="updateBpm(this.value)">
         </div>
 
         <div id="tunerArea" onclick="toggleTuner()" class="bg-slate-900 p-6 rounded-[2rem] text-white cursor-pointer transition-all active:scale-95 overflow-hidden border border-slate-800">
             <span class="text-[10px] font-black text-blue-400 uppercase mb-4 block italic">TUNER</span>
             <div id="noteDisplay" class="text-4xl font-black mb-1">--</div>
-            <div id="octaveDisplay" class="text-[10px] font-bold text-blue-400 uppercase">Ready...</div>
-            <div class="w-full h-1 bg-slate-800 mt-4 rounded-full relative">
-                <div id="tunerNeedle" class="absolute left-1/2 w-1 h-full bg-blue-500 -translate-x-1/2 transition-transform duration-75"></div>
-            </div>
+            <div id="octaveDisplay" class="text-[10px] font-bold text-blue-400 uppercase tracking-tight">Ready...</div>
         </div>
     </div>
 
     <div id="videoArea" onclick="handleVideoCycle()" class="relative aspect-[3/4] bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-lg cursor-pointer">
         <video id="webcam" autoplay playsinline class="w-full h-full object-cover scale-x-[-1] transition-opacity duration-500 opacity-0"></video>
         <div id="videoOverlay" class="absolute inset-0 flex flex-col items-center justify-center text-white/20">
-            <i data-lucide="video-off" class="w-12 h-12 mb-4"></i>
-            <span class="text-[10px] font-black tracking-widest uppercase">Tap to Start Vision</span>
+            <i data-lucide="video-off" class="w-12 h-12"></i>
         </div>
     </div>
 </div>
@@ -71,27 +62,33 @@
     let currentPitch = 0, currentNote = "--", scores = [], lastOnset = 0;
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-    // 브라우저 오디오 엔진 깨우기 (필수)
-    async function resumeAudio() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') await audioCtx.resume();
-    }
-
-    async function startListening() {
+    // 엔진 초기화 함수 (사용자 클릭 필수)
+    async function initEngine() {
         try {
-            await resumeAudio();
-            if (tunerStream) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            
             tunerStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const src = audioCtx.createMediaStreamSource(tunerStream);
-            analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser);
+            analyser = audioCtx.createAnalyser(); 
+            analyser.fftSize = 2048; 
+            src.connect(analyser);
+            
+            document.getElementById('startOverlay').classList.add('hidden');
             updateLoop();
-        } catch (e) { alert("마이크 권한이 필요합니다!"); }
+            lucide.createIcons();
+            console.log("iROOM Engine Started!");
+        } catch (e) {
+            alert("마이크 권한을 허용해주셔야 트럼펫 분석이 가능합니다! 하하!");
+        }
     }
 
     function updateLoop() {
+        if (!analyser) return;
         analyser.getFloatTimeDomainData(buf);
         let rms = 0; for(let i=0; i<buf.length; i++) rms += buf[i]*buf[i];
         let vol = Math.sqrt(rms/buf.length);
+
         if(vol > 0.05) {
             if (isMetroOn && (audioCtx.currentTime - lastOnset > 0.1)) {
                 calculateAccuracy(audioCtx.currentTime);
@@ -104,15 +101,12 @@
                 currentNote = noteStrings[Math.round(nNum)%12];
                 document.getElementById('noteDisplay').innerText = currentNote;
                 document.getElementById('octaveDisplay').innerText = `${currentNote}${Math.floor(Math.round(nNum)/12)-1}`;
-                document.getElementById('tunerNeedle').style.transform = `translateX(${(nNum - Math.round(nNum))*50}px)`;
             }
         }
         requestAnimationFrame(updateLoop);
     }
 
-    async function toggleMetronome() {
-        await resumeAudio();
-        if(!tunerStream) await startListening();
+    function toggleMetronome() {
         isMetroOn = !isMetroOn;
         const area = document.getElementById('metroArea');
         if(isMetroOn) { nextTickTime = audioCtx.currentTime; metroScheduler(); area.classList.add('active-ring'); }
@@ -120,6 +114,7 @@
     }
 
     function metroScheduler(){ while(nextTickTime<audioCtx.currentTime+0.1){ playTick(nextTickTime); nextTickTime+=60.0/bpm; } metroTimer=setTimeout(metroScheduler, 25); }
+    
     function playTick(t){
         const o=audioCtx.createOscillator(), g=audioCtx.createGain();
         o.frequency.value=1000; g.gain.exponentialRampToValueAtTime(1,t);
@@ -139,7 +134,6 @@
         scores.push(score); if(scores.length > 8) scores.shift();
         const avg = Math.round(scores.reduce((a,b)=>a+b)/scores.length);
         document.getElementById('accuracyDisplay').innerText = avg.toString().padStart(2,'0');
-        document.getElementById('timingBar').style.width = `${avg}%`;
     }
 
     function autoCorrelate(buf, sr) {
@@ -153,20 +147,27 @@
         return sr / maxpos;
     }
 
-    function updateBpm(v){ bpm=v; document.getElementById('bpmDisplay').innerText=v; }
-    async function toggleTuner() { await resumeAudio(); if(!tunerStream) await startListening(); isTunerOn = !isTunerOn; document.getElementById('tunerArea').classList.toggle('active-ring', isTunerOn); }
-    async function handleVideoCycle() { const v = document.getElementById('webcam'); const s = await navigator.mediaDevices.getUserMedia({ video: true }); v.srcObject = s; v.classList.replace('opacity-0', 'opacity-100'); }
+    function toggleTuner() {
+        isTunerOn = !isTunerOn;
+        document.getElementById('tunerArea').classList.toggle('active-ring', isTunerOn);
+    }
+
+    async function handleVideoCycle() {
+        const v = document.getElementById('webcam');
+        const s = await navigator.mediaDevices.getUserMedia({ video: true });
+        v.srcObject = s; v.classList.replace('opacity-0', 'opacity-100');
+    }
 
     function syncStatus() {
+        if (!audioCtx) return;
         const data = { bpm: bpm, isMetro: isMetroOn, note: currentNote, pitch: Math.round(currentPitch), acc: document.getElementById('accuracyDisplay').innerText };
         const script = document.createElement('script');
         script.src = `${GAS_URL}?mode=update_status&user=S&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void`;
         document.head.appendChild(script);
         setTimeout(() => document.head.removeChild(script), 1000);
     }
-    window.cb_void = () => {};
     setInterval(syncStatus, 3000);
-    lucide.createIcons();
+    window.cb_void = () => {};
 </script>
 </body>
 </html>
