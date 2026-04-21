@@ -21,18 +21,32 @@
 </div>
 <div class="w-full max-w-[480px] space-y-6">
     <div class="bg-slate-900 rounded-[2.5rem] p-6 text-white shadow-2xl border border-slate-800">
-        <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Analysis Accuracy</span><div id="rhythmIndicator" class="w-2 h-2 rounded-full bg-slate-700"></div></div>
-        <div class="flex items-baseline gap-1"><div id="accuracyDisplay" class="text-6xl font-black tracking-tighter">00</div><div class="text-xl font-bold text-blue-400">%</div></div>
+        <div class="flex justify-between items-center mb-2">
+            <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Analysis Accuracy</span>
+            <div id="connIndicator" class="w-2 h-2 rounded-full bg-slate-700"></div>
+        </div>
+        <div class="flex items-baseline gap-1">
+            <div id="accuracyDisplay" class="text-6xl font-black tracking-tighter">00</div>
+            <div class="text-xl font-bold text-blue-400">%</div>
+        </div>
     </div>
     <div class="grid grid-cols-2 gap-4">
-        <div id="metroArea" onclick="toggleMetronome()" class="bg-white p-6 rounded-[2rem] shadow-sm cursor-pointer text-slate-900"><span class="text-[10px] font-black text-blue-600 uppercase mb-4 block italic">METRONOME</span><div id="bpmDisplay" class="text-5xl font-black mb-4 tracking-tighter">120</div></div>
-        <div id="tunerArea" onclick="toggleTuner()" class="bg-slate-900 p-6 rounded-[2rem] text-white cursor-pointer border border-slate-800"><span class="text-[10px] font-black text-blue-400 uppercase mb-4 block italic">TUNER</span><div id="noteDisplay" class="text-4xl font-black mb-1">--</div><div id="octaveDisplay" class="text-[10px] font-bold text-blue-400 uppercase tracking-tight">Ready...</div></div>
+        <div id="metroArea" onclick="toggleMetronome()" class="bg-white p-6 rounded-[2rem] shadow-sm cursor-pointer text-slate-900">
+            <span class="text-[10px] font-black text-blue-600 uppercase mb-4 block italic">METRONOME</span>
+            <div id="bpmDisplay" class="text-5xl font-black mb-4 tracking-tighter">120</div>
+        </div>
+        <div id="tunerArea" onclick="toggleTuner()" class="bg-slate-900 p-6 rounded-[2rem] text-white cursor-pointer border border-slate-800">
+            <span class="text-[10px] font-black text-blue-400 uppercase mb-4 block italic">TUNER</span>
+            <div id="noteDisplay" class="text-4xl font-black mb-1">--</div>
+            <div id="octaveDisplay" class="text-[10px] font-bold text-blue-400 uppercase tracking-tight">Ready...</div>
+        </div>
     </div>
 </div>
 <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
     let audioCtx, tunerStream, analyser, buf = new Float32Array(2048), isMetroOn = false, isTunerOn = false, bpm = 120, nextTickTime = 0, metroTimer, currentPitch = 0, currentNote = "--", scores = [], lastOnset = 0;
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    
     async function initEngine() {
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -41,6 +55,7 @@
             document.getElementById('startOverlay').classList.add('hidden'); updateLoop(); lucide.createIcons();
         } catch (e) { alert("마이크 권한이 필요합니다!"); }
     }
+    
     function updateLoop() {
         analyser.getFloatTimeDomainData(buf); let rms = 0; for(let i=0; i<buf.length; i++) rms += buf[i]*buf[i]; let vol = Math.sqrt(rms/buf.length);
         if(vol > 0.05) {
@@ -52,30 +67,36 @@
             }
         } requestAnimationFrame(updateLoop);
     }
+    
     function toggleMetronome() { isMetroOn = !isMetroOn; const area = document.getElementById('metroArea'); if(isMetroOn) { nextTickTime = audioCtx.currentTime; metroScheduler(); area.classList.add('active-ring'); } else { clearTimeout(metroTimer); area.classList.remove('active-ring'); } }
     function metroScheduler(){ while(nextTickTime<audioCtx.currentTime+0.1){ playTick(nextTickTime); nextTickTime+=60.0/bpm; } metroTimer=setTimeout(metroScheduler, 25); }
     function playTick(t){
         const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.frequency.value=1000; g.gain.exponentialRampToValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.05); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t+0.05);
         setTimeout(() => { const el = document.getElementById('metroArea'); el.classList.add('metro-flash'); setTimeout(() => el.classList.remove('metro-flash'), 100); }, (t - audioCtx.currentTime)*1000);
     }
+    
     function calculateAccuracy(t) {
         const beatDur = 60.0 / bpm; const diff = Math.min((t - nextTickTime + beatDur) % beatDur, beatDur - ((t - nextTickTime + beatDur) % beatDur));
         let score = Math.max(0, 100 - (diff * 1000 / 1.5)); scores.push(score); if(scores.length > 8) scores.shift();
         document.getElementById('accuracyDisplay').innerText = Math.round(scores.reduce((a,b)=>a+b)/scores.length).toString().padStart(2,'0');
     }
+    
     function autoCorrelate(buf, sr) {
         let rms = 0; for (let i=0; i<buf.length; i++) rms += buf[i]*buf[i]; if (Math.sqrt(rms/buf.length) < 0.01) return -1;
         let c = new Float32Array(buf.length); for (let i=0; i<buf.length; i++) for (let j=0; j<buf.length-i; j++) c[i] += buf[j]*buf[j+i];
         let d = 0; while (c[d] > c[d+1]) d++; let maxval = -1, maxpos = -1; for (let i=d; i<buf.length; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } } return sr / maxpos;
     }
+    
     function toggleTuner() { isTunerOn = !isTunerOn; document.getElementById('tunerArea').classList.toggle('active-ring', isTunerOn); }
+    
+    // ⚡ 전송 주기 최적화: 1초(1000ms)
     function syncStatus() {
         if (!audioCtx) return;
         const data = { bpm: bpm, isMetro: isMetroOn, note: currentNote, pitch: Math.round(currentPitch), acc: document.getElementById('accuracyDisplay').innerText };
         const script = document.createElement('script'); script.src = `${GAS_URL}?mode=update_status&user=S1&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void`;
         document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 1000);
     }
-    setInterval(syncStatus, 3000); window.cb_void = () => {};
+    setInterval(syncStatus, 1000); window.cb_void = () => {};
 </script>
 </body>
 </html>
