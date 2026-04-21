@@ -9,101 +9,42 @@
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; }
         .data-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .status-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .status-pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
-
 <div class="w-full max-w-[480px] space-y-6">
     <div class="flex justify-between items-center px-2">
-        <div>
-            <h1 class="text-2xl font-black italic tracking-tighter text-blue-400">iROOM ANALYSIS</h1>
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Teacher Monitoring Mode</p>
-        </div>
-        <div id="connStatus" class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full">
-            <div class="w-2 h-2 rounded-full bg-red-500" id="connIndicator"></div>
-            <span class="text-[10px] font-bold uppercase" id="connText">Disconnected</span>
-        </div>
+        <div><h1 class="text-2xl font-black italic tracking-tighter text-blue-400">iROOM MONITOR</h1><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Teacher Mode</p></div>
+        <div class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full"><div id="connIndicator" class="w-2 h-2 rounded-full bg-red-500"></div><span id="connText" class="text-[10px] font-bold uppercase">Offline</span></div>
     </div>
-
     <div class="data-card rounded-[2.5rem] p-8 shadow-2xl">
-        <span class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest mb-2 block">Student Rhythm Accuracy</span>
-        <div class="flex items-baseline gap-1">
-            <div id="m-acc" class="text-8xl font-black tracking-tighter">00</div>
-            <div class="text-2xl font-bold text-blue-400">%</div>
-        </div>
-        <div class="mt-6 w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-            <div id="m-acc-bar" class="w-0 h-full bg-blue-500 transition-all duration-500"></div>
-        </div>
+        <span class="text-[10px] font-black text-blue-400 uppercase italic mb-2 block">Student Accuracy</span>
+        <div class="flex items-baseline gap-1"><div id="m-acc" class="text-8xl font-black tracking-tighter">00</div><div class="text-2xl font-bold text-blue-400">%</div></div>
     </div>
-
     <div class="grid grid-cols-2 gap-4">
-        <div class="data-card p-6 rounded-[2rem]">
-            <span class="text-[10px] font-black text-slate-400 uppercase mb-2 block italic">Student BPM</span>
-            <div id="m-bpm" class="text-5xl font-black tracking-tighter">--</div>
-        </div>
-        <div class="data-card p-6 rounded-[2rem] border-l-4 border-l-blue-500">
-            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic">Current Note</span>
-            <div id="m-note" class="text-5xl font-black tracking-tighter">--</div>
-            <p id="m-pitch" class="text-[10px] text-slate-500 font-bold mt-2">No Data</p>
-        </div>
-    </div>
-
-    <div class="text-center p-4">
-        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em]" id="lastUpdate">Waiting for Student to play...</p>
+        <div class="data-card p-6 rounded-[2rem]"><span class="text-[10px] font-black text-slate-400 uppercase mb-2 block italic">BPM</span><div id="m-bpm" class="text-5xl font-black tracking-tighter">--</div></div>
+        <div class="data-card p-6 rounded-[2rem] border-l-4 border-l-blue-500"><span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic">Note</span><div id="m-note" class="text-5xl font-black tracking-tighter">--</div><p id="m-pitch" class="text-[10px] text-slate-500 font-bold mt-2">No Data</p></div>
     </div>
 </div>
-
 <script>
-    // 1. GAS URL 설정 (학생용과 동일해야 함)
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzOxGjLQX1nZZODTLK4AuRkENvx2ShNkgJFtvaKd1RzyBy2MqGWNzyxBKZ5geRQG3fa/exec";
-
-    // 2. 학생 데이터 불러오기 함수
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzlSJTwWl1b9YGHKiCQsdFi5poIufYHvSVfrWDe_10GXmr_lHm3ML0sK6N3fmwtG-aHKQ/exec";
     function fetchStudentData() {
-        const script = document.createElement('script');
-        // mode=get_status를 통해 가장 최근에 저장된 학생 데이터를 요청함
-        script.src = `${GAS_URL}?mode=get_status&callback=cb_monitor&_ts=${Date.now()}`;
-        document.head.appendChild(script);
-        setTimeout(() => document.head.removeChild(script), 1000);
+        const script = document.createElement('script'); script.src = `${GAS_URL}?mode=get_status&user=S1&callback=cb_monitor&_ts=${Date.now()}`;
+        document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 1000);
     }
-
-    // 3. 데이터 수신 후 화면 업데이트 (콜백)
     window.cb_monitor = function(res) {
-        if (!res || !res.data) {
-            console.log("데이터가 아직 없습니다.");
-            return;
-        }
-
-        try {
-            const s = JSON.parse(res.data);
-            
-            // 데이터 매핑
-            document.getElementById('m-bpm').innerText = s.bpm || "--";
-            document.getElementById('m-note').innerText = s.note || "--";
-            document.getElementById('m-acc').innerText = (s.acc || "00").padStart(2, '0');
-            document.getElementById('m-acc-bar').style.width = `${s.acc}%`;
-            document.getElementById('m-pitch').innerText = s.pitch ? `${s.pitch} Hz` : "No Data";
-            
-            // 연결 상태 표시
-            const ind = document.getElementById('connIndicator');
-            const txt = document.getElementById('connText');
-            ind.className = "w-2 h-2 rounded-full bg-green-500 status-pulse";
-            txt.innerText = "Live Connected";
-            
-            const now = new Date();
-            document.getElementById('lastUpdate').innerText = `Last Update: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
-            
-        } catch (e) {
-            console.error("데이터 파싱 오류:", e);
-        }
+        if (!res || !res.data) return;
+        const s = JSON.parse(res.data);
+        document.getElementById('m-bpm').innerText = s.bpm || "--";
+        document.getElementById('m-note').innerText = s.note || "--";
+        document.getElementById('m-acc').innerText = (s.acc || "00").padStart(2, '0');
+        document.getElementById('m-pitch').innerText = s.pitch ? `${s.pitch} Hz` : "No Data";
+        document.getElementById('connIndicator').className = "w-2 h-2 rounded-full bg-green-500 status-pulse";
+        document.getElementById('connText').innerText = "Live";
     };
-
-    // 4. 3초마다 자동으로 데이터 새로고침
-    setInterval(fetchStudentData, 3000);
-    
-    // 첫 실행
-    fetchStudentData();
+    setInterval(fetchStudentData, 3000); fetchStudentData();
 </script>
 </body>
 </html>
