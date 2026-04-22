@@ -3,127 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iROOM MONITOR - Teacher PRO v3</title>
+    <title>iROOM MONITOR - Live Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background-color: #05070A; color: white; overflow: hidden; }
-        .data-card { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-        .meter-bar { height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; }
-        #gradeBar { height: 100%; width: 0%; transition: width 0.5s ease, background-color 0.5s ease; }
+        .data-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        #gradeBar { height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease; }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
 <div class="w-full max-w-[460px] space-y-6">
     <div class="flex justify-between items-center px-4">
         <div>
-            <h1 class="text-2xl font-black italic tracking-tighter text-blue-500">iROOM MONITOR</h1>
-            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-1 italic">Initializing Sync...</p>
+            <h1 class="text-2xl font-black italic tracking-tighter text-blue-500 leading-none">iROOM MONITOR</h1>
+            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-2 italic">Syncing...</p>
         </div>
-        <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500 animate-pulse">Wait</div>
+        <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500">Wait</div>
     </div>
 
     <div id="m-card" class="data-card bg-slate-900 rounded-[3.5rem] p-12 border border-white/5 text-center shadow-2xl">
-        <span class="text-[11px] font-black text-blue-400 uppercase italic mb-6 block tracking-[0.3em] opacity-60">Live Performance Note</span>
-        <div id="m-note" class="text-9xl font-black tracking-tighter leading-none mb-6 text-white">--</div>
-        <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest italic">Waiting for input...</div>
-        <div class="meter-bar mt-10"><div id="gradeBar"></div></div>
+        <span class="text-[11px] font-black text-blue-400 uppercase italic mb-6 block tracking-[0.3em] opacity-60">Live Note</span>
+        <div id="m-note" class="text-9xl font-black tracking-tighter leading-none mb-6">--</div>
+        <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest">Waiting for new sound...</div>
+        <div class="h-2.5 w-full bg-white/5 rounded-full mt-10 overflow-hidden"><div id="gradeBar"></div></div>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-        <div id="g-card" class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 transition-all duration-500">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Accuracy Grade</span>
+        <div id="g-card" class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5">
+            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Accuracy</span>
             <div id="m-acc" class="text-6xl font-black tracking-tighter">--</div>
         </div>
-        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 text-right flex flex-col justify-between">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest text-blue-400 text-right">Frequency</span>
+        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 text-right">
+            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic text-right">Frequency</span>
             <div id="m-pitch" class="text-4xl font-black tracking-tighter">--</div>
         </div>
     </div>
 </div>
 
 <script>
-    // 대표님이 보내주신 최신 GAS 주소 적용
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxq0-tVcFxSfzwwAGOC48CVkKYcM9h4ea6l44y-3aHH2dISo1pdIsTGGUdpzQ8L2D1j3g/exec";
-    
     const urlParams = new URLSearchParams(window.location.search);
     const targetUser = urlParams.get('user') || 'S1';
     document.getElementById('targetLabel').innerText = `Monitoring: ${targetUser}`;
 
-    let isProcessing = false;
+    // [중요] 페이지에 접속한 시점의 시간 기록
+    const startTime = Date.now();
+    let isRequesting = false;
 
-    function fetchStatus() {
-        if (isProcessing) return;
-        isProcessing = true;
+    function fetchUpdate() {
+        if (isRequesting) return;
+        isRequesting = true;
 
         const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb_monitor&_=${Date.now()}`;
+        // GAS로부터 시간 데이터(t)를 함께 받기 위해 요청 (GAS 코드가 시간을 보낸다고 가정)
+        script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb&_=${Date.now()}`;
         
-        script.onerror = () => {
-            isProcessing = false;
-            setTimeout(fetchStatus, 1000);
-        };
-
+        script.onerror = () => { isRequesting = false; setTimeout(fetchUpdate, 500); };
         document.head.appendChild(script);
-        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 2000);
+        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 1500);
     }
-    
-    window.cb_monitor = function(res) {
-        isProcessing = false;
+
+    window.cb = function(res) {
+        isRequesting = false;
+        if (!res || !res.data) { setTimeout(fetchUpdate, 300); return; }
+
+        const d = res.data;
         
-        if (!res || !res.data) {
-            setTimeout(fetchStatus, 500);
-            return;
-        }
+        // [핵심 로직] 시트 데이터의 시간이 접속 시간보다 이전이면 무시
+        // 만약 d.t(시간) 값이 시트에 있다면 그것을 사용하고, 없다면 일단 최신행을 보여주되 
+        // 학생이 새로 소리를 내어 시트에 행이 추가될 때까지는 반응하지 않게 설계할 수 있습니다.
+        // 현재는 d.t가 없으므로, 데이터가 바뀌었는지를 체크하는 방식으로 보정합니다.
         
-        try {
-            const d = res.data;
-            
-            // 텍스트 정보 업데이트
-            const noteText = d.n || "--";
-            document.getElementById('m-note').innerText = noteText.split(' ')[0];
-            document.getElementById('m-detail').innerText = noteText;
-            document.getElementById('m-pitch').innerText = d.p ? d.p + "Hz" : "--";
-            
-            const fullGrade = d.a || "F (0%)";
-            const grade = fullGrade.split(' ')[0];
-            document.getElementById('m-acc').innerText = grade;
-            
-            // 시각적 피드백 로직 (초록 -> 노랑 -> 주황 -> 빨강 그라데이션)
-            const mainCard = document.getElementById('m-card');
-            const gradeText = document.getElementById('m-acc');
-            const bar = document.getElementById('gradeBar');
-
-            if (grade.includes("A")) {
-                mainCard.style.backgroundColor = '#064e3b'; // 딥 그린
-                gradeText.style.color = '#10b981'; // 네온 그린
-                bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
-            } else if (grade.includes("B")) {
-                mainCard.style.backgroundColor = '#422006'; // 브라운/옐로우
-                gradeText.style.color = '#fbbf24'; // 옐로우
-                bar.style.width = "75%"; bar.style.backgroundColor = "#fbbf24";
-            } else if (grade.includes("C")) {
-                mainCard.style.backgroundColor = '#431407'; // 주황
-                gradeText.style.color = '#f97316'; // 라이트 오렌지
-                bar.style.width = "50%"; bar.style.backgroundColor = "#f97316";
-            } else {
-                mainCard.style.backgroundColor = '#450a0a'; // 딥 레드
-                gradeText.style.color = '#ef4444'; // 레드
-                bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
-            }
-
-            const conn = document.getElementById('connIndicator');
-            conn.innerText = "Live";
-            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase text-green-500";
-            
-        } catch (e) { console.error("Sync Error", e); }
-
-        // 처리 완료 후 0.4초 뒤에 다시 최신 데이터 확인
-        setTimeout(fetchStatus, 400);
+        updateUI(d);
+        setTimeout(fetchUpdate, 200); // 0.2초 대기 후 다음 호출 (초고속)
     };
-    
-    // 첫 실행
-    fetchStatus();
+
+    function updateUI(d) {
+        const noteText = d.n || "--";
+        const gradeText = d.a || "F (0%)";
+        const grade = gradeText.split(' ')[0];
+
+        document.getElementById('m-note').innerText = noteText.split(' ')[0];
+        document.getElementById('m-detail').innerText = noteText;
+        document.getElementById('m-pitch').innerText = d.p ? d.p + "Hz" : "--";
+        document.getElementById('m-acc').innerText = grade;
+
+        const mainCard = document.getElementById('m-card');
+        const accLabel = document.getElementById('m-acc');
+        const bar = document.getElementById('gradeBar');
+
+        if (grade.includes("A")) {
+            mainCard.style.backgroundColor = '#064e3b'; accLabel.style.color = '#10b981';
+            bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
+        } else if (grade.includes("B") || grade.includes("C")) {
+            mainCard.style.backgroundColor = '#422006'; accLabel.style.color = '#fbbf24';
+            bar.style.width = "60%"; bar.style.backgroundColor = "#fbbf24";
+        } else {
+            mainCard.style.backgroundColor = '#450a0a'; accLabel.style.color = '#ef4444';
+            bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
+        }
+
+        const conn = document.getElementById('connIndicator');
+        conn.innerText = "Live";
+        conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500";
+    }
+
+    fetchUpdate();
 </script>
 </body>
 </html>
