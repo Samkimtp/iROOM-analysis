@@ -53,14 +53,13 @@
 </div>
 
 <script>
-    // 1. 대표님이 새로 배포하신 GAS 주소 적용
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyi0kCSwVFqw6U8rqH2jeqdlBDQEdVqZ_bqJNsSIuLoYymxyXTWl2ZWGlUVLP0K0125ZQ/exec";
     
-    // 2. URL 파라미터에서 사용자 이름 가져오기 (없으면 iROOM_Tester)
     const urlParams = new URLSearchParams(window.location.search);
     const user = urlParams.get('user') || 'iROOM_Tester';
 
-    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, currentPitch = 0, currentNote = "--", cents = 0;
+    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120;
+    let currentPitch = 0, currentNote = "--", cents = 0, accuracy = 0; // 전역 변수로 관리
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     let canvas, ctx;
 
@@ -100,14 +99,19 @@
             currentNote = noteStrings[rounded % 12];
             cents = Math.round((nNum - rounded) * 100);
             
-            // 정확도 계산 (단순 예시: 센트 편차를 100% 기준으로 환산)
-            let accuracy = Math.max(0, 100 - Math.abs(cents));
-            document.getElementById('accuracyDisplay').innerText = accuracy;
+            // Accuracy 계산: 센트 편차 0일 때 100%, 50센트 차이 시 0%에 수렴하게 보정
+            accuracy = Math.max(0, 100 - Math.abs(cents) * 2);
+            document.getElementById('accuracyDisplay').innerText = Math.round(accuracy);
 
             updateVisuals(cents);
             document.getElementById('hzDisplay').innerHTML = `${currentPitch}<span class="text-xs ml-1 uppercase">Hz</span>`;
             document.getElementById('noteDisplay').innerText = currentNote;
             document.getElementById('centsDisplay').innerText = `${cents > 0 ? '+' : ''}${cents} cents`;
+        } else {
+            // 소리가 없을 때는 0으로 표시
+            currentPitch = 0;
+            accuracy = 0;
+            document.getElementById('accuracyDisplay').innerText = "00";
         }
         requestAnimationFrame(updateLoop);
     }
@@ -137,19 +141,18 @@
 
     function toggleMetronome() { isMetroOn = !isMetroOn; document.getElementById('metroArea').classList.toggle('ring-4'); }
 
-    // 3. [중요] GAS가 기대하는 이름(b, a, n, p)으로 데이터 전송
     function syncStatus() {
+        // 소리가 감지될 때만(currentPitch > 0) 시트에 전송하도록 제한
         if (!audioCtx || currentPitch === 0) return;
         
         const data = { 
-            b: bpm,                                                  // BPM
-            a: document.getElementById('accuracyDisplay').innerText,  // Accuracy
-            n: currentNote,                                          // Note 이름
-            p: currentPitch                                          // 주파수 (Hz)
+            b: bpm,
+            a: Math.round(accuracy), // 보정된 정확도 값 전송
+            n: currentNote,
+            p: currentPitch
         };
 
         const script = document.createElement('script');
-        // user=${user} 로 전송하여 S1 문제를 해결합니다.
         script.src = `${GAS_URL}?mode=update_status&user=${encodeURIComponent(user)}&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
         
         document.head.appendChild(script); 
