@@ -2,174 +2,121 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>iROOM Analysis - Student</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iROOM - Student Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; overflow: hidden; }
-        .canvas-container { position: relative; width: 100%; height: 120px; background: #1E293B; border-radius: 1.5rem; overflow: hidden; }
-        #waveCanvas { width: 100%; height: 100%; }
-        .pitch-indicator { transition: background-color 0.2s ease; }
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@600;800&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background: #05070A; color: white; overflow: hidden; }
     </style>
 </head>
-<body class="flex justify-center items-center min-h-screen p-6">
-<div id="startOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-10 text-center">
-    <button onclick="initEngine()" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-6 px-10 rounded-[2.5rem] text-xl shadow-2xl transition-all">START iROOM ENGINE 🎺</button>
-</div>
-
-<div class="w-full max-w-[480px] space-y-4">
-    <div class="canvas-container shadow-inner border border-slate-700">
-        <canvas id="waveCanvas"></canvas>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-md mb-8 px-6 flex justify-between items-end">
+        <div>
+            <h1 class="text-xl font-black italic text-blue-500 tracking-tighter leading-none">iROOM LIVE</h1>
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2">Student Mode : S1</p>
+        </div>
+        <div id="statusBtn" class="px-4 py-1 rounded-full bg-red-500/10 text-red-500 text-[10px] font-black uppercase">Mic Off</div>
     </div>
 
-    <div id="mainCard" class="pitch-indicator bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl border border-slate-800">
-        <div class="flex justify-between items-center mb-2">
-            <span id="statusLabel" class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">iROOM Real-time Analysis</span>
-            <div id="connIndicator" class="w-2 h-2 rounded-full bg-slate-700"></div>
-        </div>
-        <div class="flex items-center justify-between">
-            <div class="flex items-baseline gap-1">
-                <div id="accuracyDisplay" class="text-7xl font-black tracking-tighter text-white">--</div>
-                <div class="text-xl font-bold text-blue-400 ml-2">Grade</div>
-            </div>
-            <div class="text-right">
-                <div id="noteDisplay" class="text-5xl font-black text-white leading-none">--</div>
-                <div id="hzDisplay" class="text-sm font-bold text-slate-400 mt-2">0Hz</div>
-            </div>
+    <div class="w-full max-w-md aspect-square bg-slate-900 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
+        <div id="noteDisplay" class="text-9xl font-black tracking-tighter mb-2">--</div>
+        <div id="freqDisplay" class="text-sm font-bold text-blue-400 opacity-70 tracking-widest uppercase">Start to Play</div>
+        <div class="absolute bottom-10 w-32 h-1 bg-white/5 rounded-full overflow-hidden">
+            <div id="syncBar" class="h-full w-0 bg-blue-500 transition-all duration-300"></div>
         </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-4">
-        <div id="metroArea" onclick="toggleMetronome()" class="bg-white p-6 rounded-[2rem] text-slate-900 shadow-xl cursor-pointer">
-            <span class="text-[10px] font-black text-blue-600 uppercase block italic mb-2">METRONOME</span>
-            <div id="bpmDisplay" class="text-4xl font-black tracking-tighter">120</div>
-        </div>
-        <div class="bg-slate-800 p-6 rounded-[2rem] border border-slate-700">
-            <span class="text-[10px] font-black text-slate-400 uppercase block italic mb-2">CENTS</span>
-            <div id="centsDisplay" class="text-3xl font-black tracking-tighter text-blue-400">0</div>
-        </div>
-    </div>
-</div>
+    <button id="startBtn" class="mt-12 px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all shadow-xl shadow-blue-900/20 active:scale-95">
+        START ANALYSIS
+    </button>
 
-<script>
-    // 1. 대표님이 새로 배포하신 GAS 주소 적용 완료
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwVkhhb9538lXm-jhcJGqPnIlLXOfoHSbjVe8C2VWA5zE1xf5R9x0b2qitur7-en1RZyw/exec";
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const user = urlParams.get('user') || 'iROOM_Tester';
+    <script>
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzEOzUCuJHb1CLk4R5sAfMAlgDbOQrLaSXiDZ8lWoz-6PaE7oAHREM-lu_7hbsRP3cJQg/exec";
+        let audioContext, analyser, isRunning = false;
+        let lastSendTime = 0;
+        const SEND_INTERVAL = 400; 
+        const NOTE_STRINGS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-    let audioCtx, analyser, buf = new Float32Array(2048), bpm = 120;
-    let currentPitch = 0, currentNote = "--", accuracyScore = 0, currentGrade = "F"; 
-    const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    let canvas, ctx;
+        document.getElementById('startBtn').addEventListener('click', async () => {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const microphone = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                microphone.connect(analyser);
+                isRunning = true;
+                document.getElementById('startBtn').classList.add('hidden');
+                document.getElementById('statusBtn').innerText = "Recording";
+                document.getElementById('statusBtn').classList.replace('text-red-500', 'text-green-500');
+                update();
+            } catch (err) { alert("마이크 권한이 필요합니다."); }
+        });
 
-    async function initEngine() {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const src = audioCtx.createMediaStreamSource(stream);
-        analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser);
-        document.getElementById('startOverlay').classList.add('hidden');
-        canvas = document.getElementById('waveCanvas'); ctx = canvas.getContext('2d');
-        resizeCanvas(); drawWave(); updateLoop();
-    }
+        function update() {
+            if (!isRunning) return;
+            const buffer = new Float32Array(analyser.fftSize);
+            analyser.getFloatTimeDomainData(buffer);
+            const frequency = autoCorrelate(buffer, audioContext.sampleRate);
 
-    function resizeCanvas() { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }
+            if (frequency !== -1) {
+                const note = getNoteFromFrequency(frequency);
+                // 테스트용 랜덤 정확도 (실제 로직으로 대체 가능)
+                const accuracy = Math.floor(Math.random() * (100 - 60) + 60); 
 
-    function drawWave() {
-        requestAnimationFrame(drawWave);
-        const timeData = new Float32Array(analyser.frequencyBinCount);
-        analyser.getFloatTimeDomainData(timeData);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.lineWidth = 3; ctx.strokeStyle = '#3b82f6'; ctx.beginPath();
-        let sliceWidth = canvas.width / timeData.length, x = 0;
-        for(let i=0; i<timeData.length; i++) {
-            let v = timeData[i] * 0.8, y = (v + 1) / 2 * canvas.height;
-            if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y); x += sliceWidth;
+                document.getElementById('noteDisplay').innerText = note;
+                document.getElementById('freqDisplay').innerText = `${Math.round(frequency)} Hz`;
+
+                const now = Date.now();
+                if (now - lastSendTime > SEND_INTERVAL) {
+                    sendToSheet(note, frequency, accuracy);
+                    lastSendTime = now;
+                }
+            }
+            requestAnimationFrame(update);
         }
-        ctx.stroke();
-    }
 
-    // 대표님 요청 등급 기준 반영
-    function getGrade(score) {
-        if (score >= 95) return "A+";
-        if (score >= 90) return "A";
-        if (score >= 85) return "B+";
-        if (score >= 80) return "B";
-        if (score >= 75) return "C";
-        return "F";
-    }
-
-    function updateLoop() {
-        analyser.getFloatTimeDomainData(buf);
-        let p = autoCorrelate(buf, audioCtx.sampleRate);
-        
-        if(p !== -1 && p > 50) {
-            currentPitch = Math.round(p);
-            let nNum = 12 * (Math.log(p/440)/Math.log(2)) + 69;
-            let rounded = Math.round(nNum);
-            currentNote = noteStrings[rounded % 12];
+        function sendToSheet(noteName, freq, acc) {
+            const syncBar = document.getElementById('syncBar');
+            syncBar.style.width = "100%";
             
-            // 근접도 점수화
-            let diff = Math.abs(nNum - rounded);
-            accuracyScore = Math.round((1 - (diff * 2)) * 100); 
-            if(accuracyScore < 0) accuracyScore = 0;
+            // 등급 체계 반영
+            let grade = "F";
+            if (acc >= 95) grade = "A+";
+            else if (acc >= 90) grade = "A";
+            else if (acc >= 85) grade = "B+";
+            else if (acc >= 80) grade = "B";
+            else if (acc >= 75) grade = "C+";
+            else if (acc >= 70) grade = "C";
 
-            currentGrade = getGrade(accuracyScore);
+            const noteData = `${noteName} (${Math.round(freq)}Hz)`;
+            const accData = `${grade} (${acc}%)`;
+            const url = `${GAS_URL}?user=S1&bpm=0&acc=${encodeURIComponent(accData)}&note=${encodeURIComponent(noteData)}`;
 
-            document.getElementById('accuracyDisplay').innerText = currentGrade;
-            document.getElementById('hzDisplay').innerText = `${currentPitch}Hz`;
-            document.getElementById('noteDisplay').innerText = currentNote;
-            
-            let cents = Math.round((nNum - rounded) * 100);
-            document.getElementById('centsDisplay').innerText = cents;
-            updateVisuals(cents);
-        } else {
-            currentPitch = 0;
-            accuracyScore = 0;
-            document.getElementById('accuracyDisplay').innerText = "--";
+            fetch(url, { mode: 'no-cors' }).then(() => {
+                setTimeout(() => syncBar.style.width = "0%", 200);
+            });
         }
-        requestAnimationFrame(updateLoop);
-    }
 
-    function updateVisuals(c) {
-        const card = document.getElementById('mainCard');
-        if (Math.abs(c) < 10) card.style.backgroundColor = '#064e3b';
-        else if (c >= 10) card.style.backgroundColor = '#78350f';
-        else card.style.backgroundColor = '#1e3a8a';
-    }
+        function getNoteFromFrequency(frequency) {
+            const noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
+            return NOTE_STRINGS[(Math.round(noteNum) + 69) % 12];
+        }
 
-    function autoCorrelate(buf, sr) {
-        let rms = 0; for (let i=0; i<buf.length; i++) rms += buf[i]*buf[i];
-        if (Math.sqrt(rms/buf.length) < 0.02) return -1;
-        let c = new Float32Array(buf.length);
-        for (let i=0; i<buf.length; i++) for (let j=0; j<buf.length-i; j++) c[i] += buf[j]*buf[j+i];
-        let d = 0; while (c[d] > c[d+1]) d++;
-        let maxval = -1, maxpos = -1;
-        for (let i=d; i<buf.length; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } }
-        return sr / maxpos;
-    }
-
-    function syncStatus() {
-        if (!audioCtx || currentPitch === 0 || accuracyScore === 0) return;
-        
-        // 시트로 보내는 데이터 구성 (GAS 수정본에 맞춰 문자열로 전송)
-        const data = { 
-            b: bpm,
-            a: currentGrade + " (" + accuracyScore + "%)", 
-            n: currentNote + " (" + currentPitch + "Hz)",
-            p: currentPitch
-        };
-
-        const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=update_status&user=${encodeURIComponent(user)}&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
-        
-        document.head.appendChild(script); 
-        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 500);
-    }
-
-    setInterval(syncStatus, 1000); 
-    window.cb_void = () => {};
-</script>
+        function autoCorrelate(buf, sampleRate) {
+            let SIZE = buf.length;
+            let rms = 0;
+            for (let i=0; i<SIZE; i++) rms += buf[i]*buf[i];
+            rms = Math.sqrt(rms/SIZE);
+            if (rms < 0.01) return -1;
+            let c = new Array(SIZE).fill(0);
+            for (let i=0; i<SIZE; i++) for (let j=0; j<SIZE-i; j++) c[i] = c[i] + buf[j]*buf[j+i];
+            let d = 0; while (c[d] > c[d+1]) d++;
+            let maxval = -1, maxpos = -1;
+            for (let i=d; i<SIZE; i++) if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+            return sampleRate / maxpos;
+        }
+    </script>
 </body>
 </html>
