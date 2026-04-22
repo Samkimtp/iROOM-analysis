@@ -8,39 +8,43 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background: #05070A; color: white; overflow: hidden; }
+        .visualizer-box { transition: all 0.3s ease; }
     </style>
 </head>
 <body class="flex flex-col items-center justify-center min-h-screen p-4">
+
     <div class="w-full max-w-md mb-8 px-6 flex justify-between items-end">
         <div>
             <h1 class="text-xl font-black italic text-blue-500 tracking-tighter leading-none">iROOM LIVE</h1>
-            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2">Student Mode : S1</p>
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2">Student Mode : Active</p>
         </div>
         <div id="statusBtn" class="px-4 py-1 rounded-full bg-red-500/10 text-red-500 text-[10px] font-black uppercase">Mic Off</div>
     </div>
 
-    <div class="w-full max-w-md aspect-square bg-slate-900 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
+    <div class="w-full max-w-md aspect-square bg-slate-900 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col items-center justify-center relative overflow-hidden visualizer-box">
         <div id="noteDisplay" class="text-9xl font-black tracking-tighter mb-2">--</div>
-        <div id="freqDisplay" class="text-sm font-bold text-blue-400 opacity-70 tracking-widest uppercase">Start to Play</div>
-        <div class="absolute bottom-10 w-32 h-1 bg-white/5 rounded-full overflow-hidden">
+        <div id="freqDisplay" class="text-sm font-bold text-blue-400 opacity-70 tracking-widest uppercase">Ready to Sync</div>
+        
+        <div class="absolute bottom-10 w-32 h-1.5 bg-white/5 rounded-full overflow-hidden">
             <div id="syncBar" class="h-full w-0 bg-blue-500 transition-all duration-300"></div>
         </div>
     </div>
 
     <button id="startBtn" class="mt-12 px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl transition-all shadow-xl shadow-blue-900/20 active:scale-95">
-        START ANALYSIS
+        START PERFORMANCE
     </button>
 
     <script>
-        // 대표님의 GAS 주소 확인
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbzEOzUCuJHb1CLk4R5sAfMAlgDbOQrLaSXiDZ8lWoz-6PaE7oAHREM-lu_7hbsRP3cJQg/exec";
+        // 대표님이 주신 최신 GAS 주소 반영
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwmxL5jJkrWuRQ1x3a4L7-_IsKWPsBrH7HnvovqxsUsbbVQOlqVVFojBt3lHiAKk4X59g/exec";
         
         let audioContext, analyser, isRunning = false;
         let lastSendTime = 0;
-        const SEND_INTERVAL = 600; // 전송 안정성을 위해 0.6초로 살짝 늘림
+        const SEND_INTERVAL = 500; // 0.5초 간격 전송
         const NOTE_STRINGS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
         document.getElementById('startBtn').addEventListener('click', async () => {
+            if (isRunning) return;
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -48,12 +52,17 @@
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 2048;
                 microphone.connect(analyser);
+
                 isRunning = true;
                 document.getElementById('startBtn').classList.add('hidden');
                 document.getElementById('statusBtn').innerText = "Recording";
                 document.getElementById('statusBtn').classList.replace('text-red-500', 'text-green-500');
+                document.getElementById('statusBtn').classList.replace('bg-red-500/10', 'bg-green-500/10');
+
                 update();
-            } catch (err) { alert("마이크 권한이 필요합니다."); }
+            } catch (err) {
+                alert("마이크를 허용해주세요!");
+            }
         });
 
         function update() {
@@ -64,7 +73,8 @@
 
             if (frequency !== -1) {
                 const note = getNoteFromFrequency(frequency);
-                const accuracy = Math.floor(Math.random() * (100 - 70) + 70); 
+                // 정확도: 실시간 분석값이 없으므로 현재는 임의의 데이터(70~100)로 시뮬레이션
+                const accuracy = Math.floor(Math.random() * (100 - 70) + 70);
 
                 document.getElementById('noteDisplay').innerText = note;
                 document.getElementById('freqDisplay').innerText = `${Math.round(frequency)} Hz`;
@@ -78,11 +88,11 @@
             requestAnimationFrame(update);
         }
 
-        // [가장 안전한 전송 방식] Image Beacon 사용
         function sendToSheet(noteName, freq, acc) {
             const syncBar = document.getElementById('syncBar');
             syncBar.style.width = "100%";
             
+            // 등급 체계 적용
             let grade = "F";
             if (acc >= 95) grade = "A+";
             else if (acc >= 90) grade = "A";
@@ -94,20 +104,19 @@
             const noteData = `${noteName} (${Math.round(freq)}Hz)`;
             const accData = `${grade} (${acc}%)`;
 
-            // GET 요청 파라미터 구성
-            const params = `?user=S1&bpm=0&acc=${encodeURIComponent(accData)}&note=${encodeURIComponent(noteData)}`;
-            
-            // Image 객체를 이용해 데이터를 쏜다! (CORS 에러 없음)
-            const img = new Image();
-            img.src = GAS_URL + params;
+            // 통합 GAS 코드의 '입력 모드' 호출
+            const finalUrl = `${GAS_URL}?mode=send&user=S1&bpm=0&acc=${encodeURIComponent(accData)}&note=${encodeURIComponent(noteData)}`;
 
-            setTimeout(() => { syncBar.style.width = "0%"; }, 300);
+            fetch(finalUrl, { mode: 'no-cors' })
+                .then(() => {
+                    setTimeout(() => syncBar.style.width = "0%", 250);
+                });
         }
 
         function getNoteFromFrequency(frequency) {
             const noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
-            const noteIndex = (Math.round(noteNum) + 69) % 12;
-            return NOTE_STRINGS[noteIndex < 0 ? noteIndex + 12 : noteIndex];
+            const index = (Math.round(noteNum) + 69) % 12;
+            return NOTE_STRINGS[index < 0 ? index + 12 : index];
         }
 
         function autoCorrelate(buf, sampleRate) {
