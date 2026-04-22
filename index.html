@@ -2,168 +2,46 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>iROOM V4 - Tuner & Rhythm</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iROOM Vision Practice System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Pretendard', sans-serif; text-align: center; background-color: #f0f2f5; padding: 20px; color: #333; }
-        .card { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
-        
-        /* 튜너 디스플레이 보강 */
-        #tuner-container { background: #1a1a1a; padding: 30px; border-radius: 20px; margin-bottom: 20px; color: #00ff00; position: relative; overflow: hidden; }
-        #note-display { font-size: 72px; font-weight: 900; margin: 0; text-shadow: 0 0 20px rgba(0,255,0,0.5); }
-        #pitch-display { font-size: 20px; color: #888; margin-bottom: 15px; }
-        
-        /* 튜너 바늘 UI */
-        #meter { width: 100%; height: 10px; background: #333; border-radius: 5px; margin-top: 20px; position: relative; }
-        #needle { width: 4px; height: 20px; background: #ff0000; position: absolute; top: -5px; left: 50%; transform: translateX(-50%); transition: left 0.1s; box-shadow: 0 0 10px #ff0000; }
-        .center-line { position: absolute; left: 50%; width: 2px; height: 10px; background: #00ff00; }
-
-        .btn-rhythm { padding: 20px; font-size: 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 15px; width: 100%; margin-top: 25px; font-weight: bold; transition: 0.3s; }
-        .btn-rhythm:hover { background: #0056b3; }
-        .scanning { background: #dc3545 !important; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(0.98); } 100% { transform: scale(1); } }
-        canvas { width: 100%; height: 80px; opacity: 0.5; }
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background: #0F172A; }
     </style>
 </head>
-<body>
-
-<div class="card">
-    <div id="tuner-container">
-        <div id="pitch-display">-- Hz</div>
-        <div id="note-display">--</div>
-        <div id="meter">
-            <div class="center-line"></div>
-            <div id="needle"></div>
+<body class="flex items-center justify-center min-h-screen p-6">
+    <div class="w-full max-w-md text-center">
+        <div class="mb-12">
+            <h1 class="text-5xl font-black text-white italic tracking-tighter mb-2">iROOM</h1>
+            <p class="text-blue-400 font-bold uppercase tracking-[0.3em] text-xs">Vision Practice System</p>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 15px; color: #555;">
-            <span>-50ct</span><span>0</span><span>+50ct</span>
+
+        <div class="space-y-4">
+            <a href="analysis_teacher.html" class="block w-full p-6 bg-blue-600 hover:bg-blue-500 rounded-[2rem] text-white transition-all transform hover:-translate-y-1 shadow-xl">
+                <div class="text-left flex items-center justify-between">
+                    <div>
+                        <p class="text-[10px] font-black text-blue-200 uppercase mb-1">Administrator</p>
+                        <h2 class="text-2xl font-extrabold">Teacher Mode</h2>
+                    </div>
+                    <span class="text-3xl">🎺</span>
+                </div>
+            </a>
+
+            <a href="analysis_student.html" class="block w-full p-6 bg-slate-800 hover:bg-slate-700 rounded-[2rem] text-white transition-all transform hover:-translate-y-1 shadow-xl border border-slate-700">
+                <div class="text-left flex items-center justify-between">
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Music Performer</p>
+                        <h2 class="text-2xl font-extrabold text-blue-400">Student Mode</h2>
+                    </div>
+                    <span class="text-3xl">🎵</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="mt-12 opacity-40 text-white text-[10px] font-medium tracking-widest uppercase">
+            Data-driven Music Education Platform<br>Powered by MAVE System
         </div>
     </div>
-    
-    <canvas id="visualizer"></canvas>
-
-    <button id="rhythmBtn" class="btn-rhythm" onclick="startRhythmScan()">8초 박자 정밀 분석 시작</button>
-    <p style="font-size: 14px; color: #888; margin-top: 10px;">버튼을 누르면 8초간 리듬 데이터를 수집합니다.</p>
-</div>
-
-<script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxp4NNIVp_2uT5VOXgkzlcfcukLvD4eAnp9qGHMfiGKt5liCi6hrY6VKEKrRLZRupZCwA/exec";
-    const user = "iROOM_Tester";
-
-    let audioCtx, analyser, dataArray;
-    let isRhythmScanning = false;
-    let rhythmData = [];
-    let scanStartTime = 0;
-    let lastTunerSend = 0;
-
-    // 튜너 로직용 변수
-    const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-
-    async function init() {
-        try {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const source = audioCtx.createMediaStreamSource(stream);
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 2048;
-            dataArray = new Float32Array(analyser.fftSize);
-            source.connect(analyser);
-            draw();
-            update();
-        } catch (err) { alert("마이크 연결 실패!"); }
-    }
-
-    function update() {
-        analyser.getFloatTimeDomainData(dataArray);
-        
-        // 1. 피치 검출 (단순화된 알고리즘)
-        let pitch = autoCorrelate(dataArray, audioCtx.sampleRate);
-        
-        if (pitch !== -1) {
-            let noteNum = 12 * (Math.log(pitch / 440) / Math.log(2)) + 69;
-            let noteIndex = Math.round(noteNum) % 12;
-            let diff = Math.round((noteNum - Math.round(noteNum)) * 100);
-            
-            // 화면 업데이트
-            document.getElementById('note-display').innerText = notes[noteIndex];
-            document.getElementById('pitch-display').innerText = pitch.toFixed(1) + " Hz";
-            document.getElementById('needle').style.left = (50 + diff) + "%";
-            
-            // 2. 실시간 튜너 데이터 전송 (0.5초 간격)
-            const now = Date.now();
-            if (now - lastTunerSend > 500) {
-                sendToGAS("update_status", { pitch: pitch, note: notes[noteIndex], acc: diff, bpm: 0 });
-                lastTunerSend = now;
-            }
-        }
-
-        // 3. 리듬 스캔 로직
-        if (isRhythmScanning) {
-            let volume = 0;
-            for(let i=0; i<dataArray.length; i++) volume += dataArray[i]*dataArray[i];
-            volume = Math.sqrt(volume/dataArray.length);
-            
-            if (volume > 0.05) {
-                rhythmData.push({ t: (audioCtx.currentTime - scanStartTime).toFixed(3), v: volume.toFixed(3) });
-            }
-        }
-        
-        requestAnimationFrame(update);
-    }
-
-    // 피치 검출 함수
-    function autoCorrelate(buf, sampleRate) {
-        let size = buf.length;
-        let rms = 0;
-        for (let i=0; i<size; i++) rms += buf[i]*buf[i];
-        if (Math.sqrt(rms/size) < 0.01) return -1;
-        return 440; // 테스트용 고정값 (실제 주파수 분석 로직 적용 가능)
-    }
-
-    function startRhythmScan() {
-        isRhythmScanning = true;
-        rhythmData = [];
-        scanStartTime = audioCtx.currentTime;
-        const btn = document.getElementById('rhythmBtn');
-        btn.classList.add('scanning');
-        btn.innerText = "데이터 수집 중...";
-        setTimeout(() => {
-            isRhythmScanning = false;
-            btn.classList.remove('scanning');
-            btn.innerText = "8초 박자 정밀 분석 시작";
-            sendToGAS("rhythm_upload", { notes: rhythmData, count: rhythmData.length, bpm: 0 });
-            alert("박자 분석 완료!");
-        }, 8000);
-    }
-
-    function sendToGAS(mode, payload) {
-        const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=${mode}&user=${user}&data=${encodeURIComponent(JSON.stringify(payload))}&callback=onSuccess`;
-        document.head.appendChild(script);
-    }
-
-    function onSuccess(res) { console.log(res); }
-
-    function draw() {
-        const canvas = document.getElementById('visualizer');
-        const ctx = canvas.getContext('2d');
-        function render() {
-            requestAnimationFrame(render);
-            analyser.getFloatTimeDomainData(dataArray);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = '#007bff';
-            ctx.beginPath();
-            let x = 0;
-            for(let i=0; i<dataArray.length; i++) {
-                let y = (dataArray[i] * 40) + canvas.height/2;
-                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-                x += canvas.width/dataArray.length;
-            }
-            ctx.stroke();
-        }
-        render();
-    }
-
-    window.onload = init;
-</script>
 </body>
 </html>
