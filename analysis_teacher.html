@@ -8,7 +8,7 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background-color: #05070A; color: white; overflow: hidden; }
-        #gradeBar { height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease; }
+        #gradeBar { height: 100%; width: 0%; transition: width 0.2s ease, background-color 0.2s ease; }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
@@ -24,7 +24,7 @@
     <div id="m-card" class="bg-slate-900 rounded-[3.5rem] p-12 border border-white/5 text-center shadow-2xl transition-all duration-300">
         <span class="text-[11px] font-black text-blue-400 uppercase italic mb-6 block tracking-[0.3em] opacity-60">Performance Note</span>
         <div id="m-note" class="text-9xl font-black tracking-tighter leading-none mb-6 text-white">--</div>
-        <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest italic">Waiting for Input...</div>
+        <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest italic">Waiting...</div>
         <div class="h-2.5 w-full bg-white/5 rounded-full mt-10 overflow-hidden"><div id="gradeBar"></div></div>
     </div>
 
@@ -34,24 +34,23 @@
             <div id="m-acc" class="text-6xl font-black tracking-tighter">--</div>
         </div>
         <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 text-right flex flex-col justify-between">
-            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic tracking-widest">Pitch</span>
+            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic tracking-widest text-right">Pitch</span>
             <div id="m-pitch" class="text-4xl font-black tracking-tighter text-white">--</div>
         </div>
     </div>
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzop2ZAe4sv5FGaT4DSqEdsJMEmQpdKzuhk6qaNsnHIFe91BnrRBDH8W7m-gIAVHRopFA/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbziIQ4KKyufC3zAepQimpb8NFN-TYgN7OVt1-qdUvtYgIYmoQpj94FWoPIpRPmjYyii/exec";
     let baseRow = -1;
 
     function fetchUpdate() {
-        // 기존 스크립트 제거 후 JSONP 호출
         const oldScript = document.getElementById('jsonp-fetch');
         if (oldScript) oldScript.remove();
 
         const script = document.createElement('script');
         script.id = 'jsonp-fetch';
-        script.src = `${GAS_URL}?mode=get_status&callback=cb&_=${Date.now()}`;
+        script.src = `${GAS_URL}?mode=get_status&callback=cb&ts=${Date.now()}`;
         document.head.appendChild(script);
     }
 
@@ -67,6 +66,7 @@
 
         if (d.r > baseRow) {
             updateUI(d);
+            baseRow = d.r; // 실시간 갱신을 위해 baseRow 업데이트
             const conn = document.getElementById('connIndicator');
             conn.innerText = "Live";
             conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500";
@@ -99,8 +99,7 @@
         }
     }
 
-    // 0.5초 주기로 데이터 감시
-    setInterval(fetchUpdate, 500);
+    setInterval(fetchUpdate, 200); // 0.2초 간격 감시
 </script>
 </body>
 </html>
