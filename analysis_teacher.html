@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iROOM MONITOR - Live Tracker</title>
+    <title>iROOM MONITOR - Live</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background-color: #05070A; color: white; overflow: hidden; }
-        .data-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        #gradeBar { height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease; }
+        .data-card { transition: all 0.3s ease; }
+        #gradeBar { height: 100%; width: 0%; transition: width 0.3s ease; }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
 <div class="w-full max-w-[460px] space-y-6">
     <div class="flex justify-between items-center px-4">
         <div>
-            <h1 class="text-2xl font-black italic tracking-tighter text-blue-500 leading-none">iROOM MONITOR</h1>
-            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-2 italic">Syncing...</p>
+            <h1 class="text-2xl font-black italic tracking-tighter text-blue-500">iROOM MONITOR</h1>
+            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-1">Ready to Sync</p>
         </div>
         <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500">Wait</div>
     </div>
@@ -26,7 +26,7 @@
         <span class="text-[11px] font-black text-blue-400 uppercase italic mb-6 block tracking-[0.3em] opacity-60">Live Note</span>
         <div id="m-note" class="text-9xl font-black tracking-tighter leading-none mb-6">--</div>
         <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest">Waiting for new sound...</div>
-        <div class="h-2.5 w-full bg-white/5 rounded-full mt-10 overflow-hidden"><div id="gradeBar"></div></div>
+        <div class="h-2 w-full bg-white/5 rounded-full mt-10 overflow-hidden"><div id="gradeBar" class="bg-blue-500"></div></div>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
@@ -35,20 +35,17 @@
             <div id="m-acc" class="text-6xl font-black tracking-tighter">--</div>
         </div>
         <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 text-right">
-            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic text-right">Frequency</span>
-            <div id="m-pitch" class="text-4xl font-black tracking-tighter">--</div>
+            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Frequency</span>
+            <div id="m-pitch" class="text-4xl font-black tracking-tighter text-blue-500">--</div>
         </div>
     </div>
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwVkhhb9538lXm-jhcJGqPnIlLXOfoHSbjVe8C2VWA5zE1xf5R9x0b2qitur7-en1RZyw/exec";
-    const urlParams = new URLSearchParams(window.location.search);
-    const targetUser = urlParams.get('user') || 'S1';
-    document.getElementById('targetLabel').innerText = `Monitoring: ${targetUser}`;
-
-    // [중요] 페이지에 접속한 시점의 시간 기록
-    const startTime = Date.now();
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxq0-tVcFxSfzwwAGOC48CVkKYcM9h4ea6l44y-3aHH2dISo1pdIsTGGUdpzQ8L2D1j3g/exec";
+    
+    // [중요] 페이지에 접속한 현재 시간을 기록 (서버 시간 오차 고려하여 1초 정도 여유)
+    const startTime = Date.now() - 1000; 
     let isRequesting = false;
 
     function fetchUpdate() {
@@ -56,27 +53,32 @@
         isRequesting = true;
 
         const script = document.createElement('script');
-        // GAS로부터 시간 데이터(t)를 함께 받기 위해 요청 (GAS 코드가 시간을 보낸다고 가정)
-        script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb&_=${Date.now()}`;
+        script.src = `${GAS_URL}?mode=get_status&user=S1&callback=cb&_=${Date.now()}`;
         
-        script.onerror = () => { isRequesting = false; setTimeout(fetchUpdate, 500); };
+        script.onerror = () => { isRequesting = false; setTimeout(fetchUpdate, 300); };
         document.head.appendChild(script);
-        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 1500);
+        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 1000);
     }
 
     window.cb = function(res) {
         isRequesting = false;
-        if (!res || !res.data) { setTimeout(fetchUpdate, 300); return; }
+        if (!res || !res.data) { setTimeout(fetchUpdate, 200); return; }
 
         const d = res.data;
         
-        // [핵심 로직] 시트 데이터의 시간이 접속 시간보다 이전이면 무시
-        // 만약 d.t(시간) 값이 시트에 있다면 그것을 사용하고, 없다면 일단 최신행을 보여주되 
-        // 학생이 새로 소리를 내어 시트에 행이 추가될 때까지는 반응하지 않게 설계할 수 있습니다.
-        // 현재는 d.t가 없으므로, 데이터가 바뀌었는지를 체크하는 방식으로 보정합니다.
-        
-        updateUI(d);
-        setTimeout(fetchUpdate, 200); // 0.2초 대기 후 다음 호출 (초고속)
+        // [핵심] 시트의 데이터 기록 시간(d.t)이 선생님이 페이지를 연 시간(startTime)보다 클 때만 업데이트
+        if (d.t && d.t > startTime) {
+            updateUI(d);
+            const conn = document.getElementById('connIndicator');
+            conn.innerText = "Live";
+            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500";
+        } else {
+            console.log("과거 데이터 무시 중...");
+            document.getElementById('m-detail').innerText = "Waiting for student...";
+        }
+
+        // 딜레이를 줄이기 위해 0.2초마다 체크
+        setTimeout(fetchUpdate, 200);
     };
 
     function updateUI(d) {
@@ -98,15 +100,11 @@
             bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
         } else if (grade.includes("B") || grade.includes("C")) {
             mainCard.style.backgroundColor = '#422006'; accLabel.style.color = '#fbbf24';
-            bar.style.width = "60%"; bar.style.backgroundColor = "#fbbf24";
+            bar.style.width = "60%"; bar.style.backgroundColor = "#f59e0b";
         } else {
             mainCard.style.backgroundColor = '#450a0a'; accLabel.style.color = '#ef4444';
             bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
         }
-
-        const conn = document.getElementById('connIndicator');
-        conn.innerText = "Live";
-        conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500";
     }
 
     fetchUpdate();
