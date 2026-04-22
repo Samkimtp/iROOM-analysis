@@ -30,8 +30,8 @@
         </div>
         <div class="flex items-center justify-between">
             <div class="flex items-baseline gap-1">
-                <div id="accuracyDisplay" class="text-6xl font-black tracking-tighter text-white">00</div>
-                <div class="text-xl font-bold text-blue-400">%</div>
+                <div id="accuracyDisplay" class="text-7xl font-black tracking-tighter text-white">--</div>
+                <div class="text-xl font-bold text-blue-400">Grade</div>
             </div>
             <div class="text-right">
                 <div id="noteDisplay" class="text-5xl font-black text-white leading-none">--</div>
@@ -53,13 +53,15 @@
 </div>
 
 <script>
+    // 1. 대표님 GAS 주소
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyi0kCSwVFqw6U8rqH2jeqdlBDQEdVqZ_bqJNsSIuLoYymxyXTWl2ZWGlUVLP0K0125ZQ/exec";
     
+    // 2. URL 파라미터 사용자 인식
     const urlParams = new URLSearchParams(window.location.search);
     const user = urlParams.get('user') || 'iROOM_Tester';
 
     let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120;
-    let currentPitch = 0, currentNote = "--", cents = 0, accuracy = 0; // 전역 변수로 관리
+    let currentPitch = 0, currentNote = "--", accuracyScore = 0, currentGrade = "F"; 
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     let canvas, ctx;
 
@@ -89,29 +91,44 @@
         ctx.stroke();
     }
 
+    // 대표님 요청 등급 기준 적용
+    function getGrade(score) {
+        if (score >= 95) return "A+";
+        if (score >= 90) return "A";
+        if (score >= 85) return "B+";
+        if (score >= 80) return "B";
+        if (score >= 75) return "C";
+        return "F";
+    }
+
     function updateLoop() {
         analyser.getFloatTimeDomainData(buf);
         let p = autoCorrelate(buf, audioCtx.sampleRate);
-        if(p !== -1) {
+        
+        if(p !== -1 && p > 50) {
             currentPitch = Math.round(p);
             let nNum = 12 * (Math.log(p/440)/Math.log(2)) + 69;
             let rounded = Math.round(nNum);
             currentNote = noteStrings[rounded % 12];
-            cents = Math.round((nNum - rounded) * 100);
             
-            // Accuracy 계산: 센트 편차 0일 때 100%, 50센트 차이 시 0%에 수렴하게 보정
-            accuracy = Math.max(0, 100 - Math.abs(cents) * 2);
-            document.getElementById('accuracyDisplay').innerText = Math.round(accuracy);
+            // 근접도 점수화 (정가운데 일치 시 100점)
+            let diff = Math.abs(nNum - rounded);
+            accuracyScore = Math.round((1 - (diff * 2)) * 100); 
+            if(accuracyScore < 0) accuracyScore = 0;
 
-            updateVisuals(cents);
+            currentGrade = getGrade(accuracyScore);
+
+            document.getElementById('accuracyDisplay').innerText = currentGrade;
             document.getElementById('hzDisplay').innerHTML = `${currentPitch}<span class="text-xs ml-1 uppercase">Hz</span>`;
             document.getElementById('noteDisplay').innerText = currentNote;
+            
+            let cents = Math.round((nNum - rounded) * 100);
             document.getElementById('centsDisplay').innerText = `${cents > 0 ? '+' : ''}${cents} cents`;
+            updateVisuals(cents);
         } else {
-            // 소리가 없을 때는 0으로 표시
             currentPitch = 0;
-            accuracy = 0;
-            document.getElementById('accuracyDisplay').innerText = "00";
+            accuracyScore = 0;
+            document.getElementById('accuracyDisplay').innerText = "--";
         }
         requestAnimationFrame(updateLoop);
     }
@@ -142,12 +159,11 @@
     function toggleMetronome() { isMetroOn = !isMetroOn; document.getElementById('metroArea').classList.toggle('ring-4'); }
 
     function syncStatus() {
-        // 소리가 감지될 때만(currentPitch > 0) 시트에 전송하도록 제한
-        if (!audioCtx || currentPitch === 0) return;
+        if (!audioCtx || currentPitch === 0 || accuracyScore === 0) return;
         
         const data = { 
             b: bpm,
-            a: Math.round(accuracy), // 보정된 정확도 값 전송
+            a: `${currentGrade} (${accuracyScore}%)`, // 등급과 %를 동시에 시트로!
             n: currentNote,
             p: currentPitch
         };
@@ -159,7 +175,7 @@
         setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 500);
     }
 
-    setInterval(syncStatus, 1000); // 1초 간격 전송
+    setInterval(syncStatus, 1000); 
     window.cb_void = () => {};
 </script>
 </body>
