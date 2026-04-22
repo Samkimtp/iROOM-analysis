@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iROOM MONITOR - Teacher View</title>
+    <title>iROOM MONITOR - Teacher</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; overflow: hidden; }
-        .data-card { transition: background-color 0.5s ease; }
-        .meter-bar { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 20px; }
+        .data-card { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .meter-bar { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 24px; }
         #gradeBar { height: 100%; width: 0%; transition: width 0.5s ease, background-color 0.5s ease; }
     </style>
 </head>
@@ -17,8 +17,8 @@
 <div class="w-full max-w-[480px] space-y-4">
     <div class="flex justify-between items-center px-2">
         <div>
-            <h1 class="text-2xl font-black italic tracking-tighter text-blue-400 leading-none">iROOM MONITOR</h1>
-            <p class="text-[10px] font-bold text-slate-500 uppercase mt-1">Live Teacher View</p>
+            <h1 class="text-2xl font-black italic tracking-tighter text-blue-400">iROOM MONITOR</h1>
+            <p id="targetUserLabel" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Monitoring: S1</p>
         </div>
         <div id="connIndicator" class="bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500">Wait</div>
     </div>
@@ -26,85 +26,90 @@
     <div id="m-card" class="data-card bg-slate-900 rounded-[3rem] p-10 shadow-2xl border border-slate-800">
         <div class="flex justify-between items-start">
             <div>
-                <span class="text-[11px] font-black text-blue-400 uppercase italic mb-3 block tracking-widest">Accuracy Grade</span>
+                <span class="text-[11px] font-black text-blue-400 uppercase italic mb-3 block">Accuracy Grade</span>
                 <div id="m-acc" class="text-8xl font-black tracking-tighter leading-none">--</div>
             </div>
             <div class="text-right">
                 <div id="m-note" class="text-6xl font-black text-white leading-none">--</div>
-                <div id="m-detail" class="text-[11px] font-bold text-slate-400 mt-4 uppercase">Ready to Sync</div>
+                <div id="m-detail" class="text-[11px] font-bold text-slate-500 mt-4 uppercase">Ready</div>
             </div>
         </div>
         <div class="meter-bar"><div id="gradeBar"></div></div>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-        <div class="bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-700/50 backdrop-blur-sm">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Student BPM</span>
-            <div id="m-bpm" class="text-4xl font-black tracking-tighter text-white">--</div>
+        <div class="bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-700/50 backdrop-blur-md">
+            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Student BPM</span>
+            <div id="m-bpm" class="text-4xl font-black tracking-tighter">--</div>
         </div>
-        <div class="bg-slate-800/50 p-6 rounded-[2.5rem] border border-slate-700/50 backdrop-blur-sm text-right">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Live Frequency</span>
+        <div class="bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-700/50 backdrop-blur-md text-right">
+            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Frequency</span>
             <div id="m-pitch" class="text-3xl font-black tracking-tighter text-blue-400">--</div>
         </div>
     </div>
 </div>
 
 <script>
-    // 1. 대표님의 최신 웹앱 주소 (등급 수집용)
+    // [중요] 최신 GAS 주소 확인
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyU7gELoY3nCyXlWaE2LTTJGt69IMf-kWLo4YD79WHFaujB-ceNjuH70UfWNZKPaCXl7g/exec";
     
-    // 관제할 학생 ID 설정 (기본값 iROOM_Tester)
+    // URL에서 user 파라미터를 읽어옵니다. 없으면 'S1'을 기본으로 감시합니다.
     const urlParams = new URLSearchParams(window.location.search);
-    const targetUser = urlParams.get('user') || 'iROOM_Tester';
-    
+    const targetUser = urlParams.get('user') || 'S1';
+    document.getElementById('targetUserLabel').innerText = `Monitoring: ${targetUser}`;
+
     function fetchStudentData() {
         const script = document.createElement('script');
-        // mode=get_status를 통해 실시간 데이터 호출
         script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb_monitor&_=${Date.now()}`;
         document.head.appendChild(script);
         setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 800);
     }
     
     window.cb_monitor = function(res) {
+        // 데이터가 없거나 형식이 잘못되어도 멈추지 않도록 예외 처리
         if (!res || !res.data) return;
-        const s = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
         
-        // 1. 기본 텍스트 정보 업데이트
-        document.getElementById('m-bpm').innerText = s.b || "--";
-        
-        // 2. 음정 및 세부 수치 업데이트
-        const noteFull = s.n || "--"; // 예: "C (134Hz)"
-        document.getElementById('m-note').innerText = noteFull.split(' ')[0];
-        document.getElementById('m-detail').innerText = noteFull;
-        document.getElementById('m-pitch').innerText = s.p ? s.p + "Hz" : "--";
-        
-        // 3. 등급(Accuracy) 처리 및 시각화
-        const accuracyFull = s.a || ""; // 예: "A+ (98%)"
-        const grade = accuracyFull.split(' ')[0] || "--";
-        document.getElementById('m-acc').innerText = grade;
-        
-        const card = document.getElementById('m-card');
-        const bar = document.getElementById('gradeBar');
-        const conn = document.getElementById('connIndicator');
+        try {
+            const s = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+            
+            document.getElementById('m-bpm').innerText = s.b || "--";
+            
+            // 음정 정보 (예: "C (134Hz)") 처리
+            const noteData = s.n || "--";
+            document.getElementById('m-note').innerText = noteData.split(' ')[0];
+            document.getElementById('m-detail').innerText = noteData;
+            document.getElementById('m-pitch').innerText = s.p ? s.p + "Hz" : "--";
+            
+            // 등급 정보 (예: "A+ (98%)") 처리
+            const gradeData = s.a || "--";
+            const grade = gradeData.split(' ')[0];
+            document.getElementById('m-acc').innerText = grade;
+            
+            const card = document.getElementById('m-card');
+            const bar = document.getElementById('gradeBar');
+            const conn = document.getElementById('connIndicator');
 
-        // 등급별 시각적 반응 로직
-        if (grade.includes("A")) {
-            card.style.backgroundColor = '#064e3b'; // Deep Green
-            bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
-        } else if (grade.includes("B")) {
-            card.style.backgroundColor = '#78350f'; // Warm Orange
-            bar.style.width = "75%"; bar.style.backgroundColor = "#f59e0b";
-        } else if (grade.includes("C")) {
-            card.style.backgroundColor = '#1e3a8a'; // Deep Blue
-            bar.style.width = "50%"; bar.style.backgroundColor = "#3b82f6";
-        } else if (grade === "F") {
-            card.style.backgroundColor = '#450a0a'; // Deep Red
-            bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
-        } else {
-            card.style.backgroundColor = '#0F172A'; // Default
-            bar.style.width = "0%";
+            // 등급별 시각 효과 반영
+            if (grade.includes("A")) {
+                card.style.backgroundColor = '#064e3b'; bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
+            } else if (grade.includes("B")) {
+                card.style.backgroundColor = '#78350f'; bar.style.width = "75%"; bar.style.backgroundColor = "#f59e0b";
+            } else if (grade.includes("C")) {
+                card.style.backgroundColor = '#1e3a8a'; bar.style.width = "50%"; bar.style.backgroundColor = "#3b82f6";
+            } else if (grade === "F") {
+                card.style.backgroundColor = '#450a0a'; bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
+            }
+
+            conn.innerText = "Live";
+            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase text-green-500";
+            
+        } catch (e) {
+            console.error("Data parsing error:", e);
         }
-        
-        // 연결 상태 표시
-        conn.innerText = "Live";
-        conn.classList.replace
+    };
+    
+    setInterval(fetchStudentData, 1000);
+    fetchStudentData();
+</script>
+</body>
+</html>
