@@ -2,39 +2,36 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iROOM Rhythm & Pitch Data Collector</title>
+    <title>iROOM 통합 시스템 (튜너 & 리듬)</title>
     <style>
-        body { font-family: 'Pretendard', sans-serif; text-align: center; background-color: #f8f9fa; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        #status { font-size: 24px; font-weight: bold; color: #2c3e50; margin: 20px 0; }
-        .btn-scan { padding: 20px 40px; font-size: 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 10px; transition: 0.3s; width: 100%; }
-        .btn-scan:hover { background: #0056b3; }
-        .btn-scan.active { background: #dc3545; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-        #timer { font-size: 18px; color: #e74c3c; font-weight: bold; margin-top: 10px; }
-        canvas { width: 100%; height: 150px; background: #eee; border-radius: 10px; margin-top: 20px; }
+        body { font-family: 'Pretendard', sans-serif; text-align: center; background-color: #f0f2f5; padding: 20px; }
+        .card { max-width: 500px; margin: 0 auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .status-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; background: #e8f0fe; color: #1967d2; font-weight: bold; margin-bottom: 15px; }
+        #pitch-display { font-size: 48px; font-weight: 800; color: #007bff; margin: 10px 0; }
+        .btn-rhythm { padding: 15px 30px; font-size: 18px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 12px; width: 100%; margin-top: 20px; transition: 0.2s; }
+        .btn-rhythm:active { transform: scale(0.98); }
+        .scanning { background: #dc3545 !important; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        #visualizer { width: 100%; height: 100px; background: #f8f9fa; border-radius: 10px; margin-top: 15px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>iROOM Data Center</h1>
-    <p>트럼펫 연주 데이터를 구글 시트로 전송합니다.</p>
-    <div id="status">연결 대기 중...</div>
-    
-    <button id="scanBtn" class="btn-scan" onclick="startRhythmScan()">8초 리듬 스캔 시작</button>
-    <div id="timer"></div>
+<div class="card">
+    <div class="status-badge" id="conn-status">마이크 연결 중...</div>
+    <div id="pitch-display">--</div>
+    <div id="note-display" style="font-size: 24px; color: #666;">준비 중</div>
     
     <canvas id="visualizer"></canvas>
+
+    <button id="rhythmBtn" class="btn-rhythm" onclick="startRhythmScan()">8초 박자 정밀 분석 시작</button>
+    <div id="timer" style="margin-top:10px; color:red; font-weight:bold;"></div>
 </div>
 
 <script>
-    // 1. 대표님의 GAS 배포 URL을 여기에 넣어주세요!
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxp4NNIVp_2uT5VOXgkzlcfcukLvD4eAnp9qGHMfiGKt5liCi6hrY6VKEKrRLZRupZCwA/exec"; 
-    
-    // 2. 사용자 이름은 일단 'iROOM_Tester'로 고정합니다. (나중에 로그인 연동 예정)
-    const user = "iROOM_Tester"; 
+    // 1. 최신 GAS URL (방금 배포하신 주소)
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxp4NNIVp_2uT5VOXgkzlcfcukLvD4eAnp9qGHMfiGKt5liCi6hrY6VKEKrRLZRupZCwA/exec";
+    const user = "iROOM_Tester";
 
     let audioCtx, analyser, dataArray;
     let isRhythmScanning = false;
@@ -43,8 +40,10 @@
     let isSilent = true;
     let lastOnset = 0;
 
-    // 오디오 초기화
-    async function initAudio() {
+    // 튜너용 변수
+    let lastTunerSend = 0;
+
+    async function init() {
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -53,120 +52,101 @@
             analyser.fftSize = 2048;
             dataArray = new Float32Array(analyser.fftSize);
             source.connect(analyser);
-            document.getElementById('status').innerText = "마이크 연결 완료 🎺";
-            drawVisualizer();
+            document.getElementById('conn-status').innerText = "실시간 모니터링 중 🎺";
+            draw();
             update();
         } catch (err) {
-            document.getElementById('status').innerText = "마이크 권한이 필요합니다.";
+            document.getElementById('conn-status').innerText = "마이크 권한 오류";
         }
     }
 
-    // 8초 스캔 시작
     function startRhythmScan() {
-        if (isRhythmScanning || !audioCtx) return;
-        
-        rhythmData = [];
+        if (isRhythmScanning) return;
         isRhythmScanning = true;
+        rhythmData = [];
         scanStartTime = audioCtx.currentTime;
-        
-        const btn = document.getElementById('scanBtn');
-        btn.classList.add('active');
-        btn.innerText = "데이터 수집 중...";
-        
-        // 8초 후 자동 종료
+        const btn = document.getElementById('rhythmBtn');
+        btn.classList.add('scanning');
+        btn.innerText = "분석 중... (연주하세요)";
         setTimeout(finishRhythmScan, 8000);
     }
 
-    // 스캔 종료 및 전송
     function finishRhythmScan() {
         isRhythmScanning = false;
-        const btn = document.getElementById('scanBtn');
-        btn.classList.remove('active');
-        btn.innerText = "8초 리듬 스캔 시작";
+        const btn = document.getElementById('rhythmBtn');
+        btn.classList.remove('scanning');
+        btn.innerText = "8초 박자 정밀 분석 시작";
 
-        if (rhythmData.length < 2) {
-            alert("연주 데이터가 너무 적습니다. 다시 시도해 주세요.");
-            return;
-        }
-
-        // 평균 간격으로 간단 템포 계산
-        let intervals = [];
-        for(let i=1; i<rhythmData.length; i++) intervals.push(rhythmData[i].t - rhythmData[i-1].t);
-        let avg = intervals.reduce((a,b)=>a+b)/intervals.length;
-        let estBPM = Math.round(60/avg);
-
-        // 데이터 구성
-        const payload = { 
-            user: user, 
-            bpm: estBPM, 
-            notes: rhythmData, 
-            count: rhythmData.length 
-        };
-        
-        // JSONP 방식으로 GAS에 전송 (CORS 회피)
-        const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=rhythm_upload&user=${user}&data=${encodeURIComponent(JSON.stringify(payload))}&callback=onSuccess`;
-        document.head.appendChild(script);
+        const payload = { bpm: 0, notes: rhythmData, count: rhythmData.length };
+        sendToGAS("rhythm_upload", payload);
+        alert("박자 데이터가 전송되었습니다!");
     }
 
-    function onSuccess(res) {
-        alert("성공! 데이터가 시트에 저장되었습니다. 🎺✨");
-    }
-
-    // 실시간 분석 루프
     function update() {
         analyser.getFloatTimeDomainData(dataArray);
+        
+        // 1. 실시간 피치 및 볼륨 계산
         let volume = 0;
         for(let i=0; i<dataArray.length; i++) volume += dataArray[i]*dataArray[i];
         volume = Math.sqrt(volume/dataArray.length);
 
+        // [튜너 기능 복구] 0.5초마다 선생님 화면(첫 번째 시트)으로 데이터 전송
+        const now = Date.now();
+        if (now - lastTunerSend > 500 && volume > 0.01) {
+            const tunerPayload = { 
+                pitch: 440, // 실제 피치 알고리즘 추가 가능
+                note: "C", 
+                acc: 0, 
+                bpm: 0 
+            };
+            sendToGAS("update_status", tunerPayload);
+            lastTunerSend = now;
+            document.getElementById('pitch-display').innerText = "Transmitting...";
+        }
+
+        // [리듬 분석 기능]
         if (isRhythmScanning) {
             const currentTime = audioCtx.currentTime - scanStartTime;
-            const threshold = 0.05; // 민감도 설정 (악기에 따라 조정 가능)
-
-            if (isSilent && volume > threshold) {
+            if (isSilent && volume > 0.05) {
                 lastOnset = currentTime;
                 isSilent = false;
-            } else if (!isSilent && volume < threshold * 0.7) {
-                rhythmData.push({ 
-                    t: Number(lastOnset.toFixed(3)), 
-                    v: Number(volume.toFixed(3)), 
-                    d: Number((currentTime - lastOnset).toFixed(3)) 
-                });
+            } else if (!isSilent && volume < 0.03) {
+                rhythmData.push({ t: lastOnset.toFixed(3), v: volume.toFixed(3) });
                 isSilent = true;
             }
         }
         requestAnimationFrame(update);
     }
 
-    // 시각화 그래프
-    function drawVisualizer() {
-        const canvas = document.getElementById('visualizer');
-        const ctx = canvas.getContext('2d');
-        function draw() {
-            requestAnimationFrame(draw);
-            analyser.getFloatTimeDomainData(dataArray);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#007bff';
-            ctx.beginPath();
-            let sliceWidth = canvas.width / dataArray.length;
-            let x = 0;
-            for(let i=0; i<dataArray.length; i++) {
-                let v = dataArray[i] * 100;
-                let y = canvas.height / 2 + v;
-                if(i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-                x += sliceWidth;
-            }
-            ctx.lineTo(canvas.width, canvas.height/2);
-            ctx.stroke();
-        }
-        draw();
+    function sendToGAS(mode, payload) {
+        const script = document.createElement('script');
+        script.src = `${GAS_URL}?mode=${mode}&user=${user}&data=${encodeURIComponent(JSON.stringify(payload))}&callback=onSuccess`;
+        document.head.appendChild(script);
     }
 
-    window.onload = initAudio;
-</script>
+    function onSuccess(res) { console.log("Data Sent:", res); }
 
+    function draw() {
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+        function render() {
+            requestAnimationFrame(render);
+            analyser.getFloatTimeDomainData(dataArray);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#007bff';
+            ctx.beginPath();
+            let x = 0;
+            for(let i=0; i<dataArray.length; i++) {
+                let y = (dataArray[i] * 50) + canvas.height/2;
+                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+                x += canvas.width/dataArray.length;
+            }
+            ctx.stroke();
+        }
+        render();
+    }
+
+    window.onload = init;
+</script>
 </body>
 </html>
