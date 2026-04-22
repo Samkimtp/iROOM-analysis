@@ -17,9 +17,9 @@
     <div class="flex justify-between items-center px-4">
         <div>
             <h1 class="text-2xl font-black italic tracking-tighter text-blue-500 leading-none">iROOM MONITOR</h1>
-            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-2 italic">Connecting to iROOM...</p>
+            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-2 italic">Connecting...</p>
         </div>
-        <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500 animate-pulse">Standby</div>
+        <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500">Standby</div>
     </div>
 
     <div id="m-card" class="data-card bg-slate-900 rounded-[3.5rem] p-12 border border-white/5 text-center shadow-2xl">
@@ -30,40 +30,27 @@
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-        <div id="g-card" class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 transition-all duration-500">
+        <div id="g-card" class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5">
             <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Accuracy Grade</span>
             <div id="m-acc" class="text-6xl font-black tracking-tighter">--</div>
         </div>
         <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 text-right flex flex-col justify-between">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest text-blue-400">Frequency</span>
-            <div id="m-pitch" class="text-4xl font-black tracking-tighter text-white">--</div>
+            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic tracking-widest text-right">Frequency</span>
+            <div id="m-pitch" class="text-4xl font-black tracking-tighter">--</div>
         </div>
     </div>
 </div>
 
 <script>
-    // 대표님이 주신 최신 GAS 주소
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzEOzUCuJHb1CLk4R5sAfMAlgDbOQrLaSXiDZ8lWoz-6PaE7oAHREM-lu_7hbsRP3cJQg/exec";
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const targetUser = urlParams.get('user') || 'S1';
-    document.getElementById('targetLabel').innerText = `Monitoring: ${targetUser}`;
-
-    let baseRow = -1; // 페이지 접속 시점의 마지막 행 번호 저장용
+    let baseRow = -1;
     let isProcessing = false;
 
     function fetchUpdate() {
         if (isProcessing) return;
         isProcessing = true;
-
         const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb&_=${Date.now()}`;
-        
-        script.onerror = () => {
-            isProcessing = false;
-            setTimeout(fetchUpdate, 500);
-        };
-
+        script.src = `${GAS_URL}?mode=get_status&user=S1&callback=cb&_=${Date.now()}`;
         document.head.appendChild(script);
         setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 1500);
     }
@@ -71,29 +58,18 @@
     window.cb = function(res) {
         isProcessing = false;
         if (!res || !res.data) { setTimeout(fetchUpdate, 300); return; }
-
         const d = res.data;
-        const currentRow = d.r; // GAS가 보낸 현재 행 번호
+        const currentRow = d.r;
 
-        // 1. [초기화] 처음 접속했을 때 현재 시트의 마지막 줄 번호를 기준으로 고정
         if (baseRow === -1) {
             baseRow = currentRow;
-            document.getElementById('targetLabel').innerText = `Monitoring: ${targetUser} (Active)`;
-            console.log("기준 행 설정됨:", baseRow);
-        } 
-        // 2. [실시간 감시] 시트의 마지막 줄 번호가 기준보다 커지면(새 연주 데이터가 들어오면) 업데이트
-        else if (currentRow > baseRow) {
+            document.getElementById('targetLabel').innerText = `Monitoring: S1 (Active)`;
+        } else if (currentRow > baseRow) {
             updateUI(d);
             const conn = document.getElementById('connIndicator');
             conn.innerText = "Live";
-            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500 animate-none";
-        } 
-        // 3. 아직 새 데이터가 없을 때
-        else {
-            console.log("신규 연주 대기 중...");
+            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500";
         }
-
-        // 0.2초마다 초고속 확인
         setTimeout(fetchUpdate, 200);
     };
 
@@ -102,30 +78,29 @@
         const gradeText = d.a || "F (0%)";
         const grade = gradeText.split(' ')[0];
 
-        // 텍스트 업데이트
         document.getElementById('m-note').innerText = noteText.split(' ')[0];
         document.getElementById('m-detail').innerText = noteText;
         document.getElementById('m-pitch').innerText = d.p ? d.p + "Hz" : "--";
         document.getElementById('m-acc').innerText = grade;
 
-        // 시각적 등급 피드백 (배경색 및 게이지)
         const mainCard = document.getElementById('m-card');
         const accLabel = document.getElementById('m-acc');
         const bar = document.getElementById('gradeBar');
 
         if (grade.includes("A")) {
             mainCard.style.backgroundColor = '#064e3b'; accLabel.style.color = '#10b981';
-            bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
-        } else if (grade.includes("B") || grade.includes("C")) {
+            bar.style.width = grade === "A+" ? "100%" : "92%"; bar.style.backgroundColor = "#10b981";
+        } else if (grade.includes("B")) {
             mainCard.style.backgroundColor = '#422006'; accLabel.style.color = '#fbbf24';
-            bar.style.width = "65%"; bar.style.backgroundColor = "#fbbf24";
+            bar.style.width = grade === "B+" ? "87%" : "82%"; bar.style.backgroundColor = "#fbbf24";
+        } else if (grade.includes("C")) {
+            mainCard.style.backgroundColor = '#431407'; accLabel.style.color = '#f97316';
+            bar.style.width = grade === "C+" ? "77%" : "72%"; bar.style.backgroundColor = "#f97316";
         } else {
             mainCard.style.backgroundColor = '#450a0a'; accLabel.style.color = '#ef4444';
-            bar.style.width = "30%"; bar.style.backgroundColor = "#ef4444";
+            bar.style.width = "40%"; bar.style.backgroundColor = "#ef4444";
         }
     }
-
-    // 통신 시작
     fetchUpdate();
 </script>
 </body>
