@@ -1,47 +1,40 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iROOM Vision Practice System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background: #0F172A; }
-    </style>
-</head>
-<body class="flex items-center justify-center min-h-screen p-6">
-    <div class="w-full max-w-md text-center">
-        <div class="mb-12">
-            <h1 class="text-5xl font-black text-white italic tracking-tighter mb-2">iROOM</h1>
-            <p class="text-blue-400 font-bold uppercase tracking-[0.3em] text-xs">Vision Practice System</p>
-        </div>
+<script>
+    // 1. 대표님의 GAS URL (iroom_analysis 연결용)
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
+    
+    // 2. [S1 해결] URL 파라미터에서 이름을 가져오고, 없으면 기본값 설정
+    const urlParams = new URLSearchParams(window.location.search);
+    const user = urlParams.get('user') || 'iROOM_Tester'; 
 
-        <div class="space-y-4">
-            <a href="analysis_teacher.html" class="block w-full p-6 bg-blue-600 hover:bg-blue-500 rounded-[2rem] text-white transition-all transform hover:-translate-y-1 shadow-xl">
-                <div class="text-left flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] font-black text-blue-200 uppercase mb-1">Administrator</p>
-                        <h2 class="text-2xl font-extrabold">Teacher Mode</h2>
-                    </div>
-                    <span class="text-3xl">🎺</span>
-                </div>
-            </a>
+    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, currentPitch = 0, currentNote = "--", cents = 0;
+    const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-            <a href="analysis_student.html" class="block w-full p-6 bg-slate-800 hover:bg-slate-700 rounded-[2rem] text-white transition-all transform hover:-translate-y-1 shadow-xl border border-slate-700">
-                <div class="text-left flex items-center justify-between">
-                    <div>
-                        <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Music Performer</p>
-                        <h2 class="text-2xl font-extrabold text-blue-400">Student Mode</h2>
-                    </div>
-                    <span class="text-3xl">🎵</span>
-                </div>
-            </a>
-        </div>
+    // ... (중략: initEngine, drawWave, updateLoop, autoCorrelate 등 UI 로직) ...
 
-        <div class="mt-12 opacity-40 text-white text-[10px] font-medium tracking-widest uppercase">
-            Data-driven Music Education Platform<br>Powered by MAVE System
-        </div>
-    </div>
-</body>
-</html>
+    // 3. [데이터 매칭] 시트 항목에 맞춰 전송하는 핵심 함수
+    function syncStatus() {
+        if (!audioCtx || currentPitch === 0) return;
+
+        // 시트 컬럼 구성에 맞춘 데이터 패키징
+        const data = { 
+            b: bpm,                                     // bpm 항목으로
+            a: document.getElementById('accuracyDisplay').innerText, // accuracy 항목으로
+            n: `${currentNote} (${currentPitch}Hz)`,    // note & pitch 항목으로 통합
+            c: cents                                    // (필요시 시트에서 확장 가능)
+        };
+
+        const script = document.createElement('script');
+        
+        // [수정] user=S1 고정값을 user=${user} 변수로 교체
+        script.src = `${GAS_URL}?mode=update_status&user=${user}&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
+        
+        document.head.appendChild(script); 
+        setTimeout(() => {
+            if (document.head.contains(script)) document.head.removeChild(script);
+        }, 500);
+    }
+
+    // 0.8초마다 실시간 전송
+    setInterval(syncStatus, 800); 
+    window.cb_void = () => {};
+</script>
