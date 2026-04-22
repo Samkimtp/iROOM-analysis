@@ -2,94 +2,139 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>iROOM - 실시간 튜너 관제 센터</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>iROOM Analysis - Student</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Pretendard', sans-serif; background-color: #0e1013; color: white; margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; }
-        .tuner-card { background: #1c1f26; padding: 40px; border-radius: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; width: 350px; border: 1px solid #333; }
-        #note { font-size: 100px; font-weight: 900; margin: 10px 0; color: #00ff88; text-shadow: 0 0 30px rgba(0,255,136,0.4); }
-        #freq { font-size: 20px; color: #888; margin-bottom: 30px; }
-        .meter-container { position: relative; width: 100%; height: 60px; margin-top: 20px; }
-        .meter-bg { width: 100%; height: 8px; background: #333; border-radius: 4px; position: absolute; top: 26px; }
-        .center-line { position: absolute; left: 50%; top: 15px; width: 3px; height: 30px; background: #00ff88; z-index: 2; }
-        #needle { position: absolute; left: 50%; top: 10px; width: 4px; height: 40px; background: #ff4757; border-radius: 2px; transform: translateX(-50%); transition: left 0.1s ease-out; z-index: 3; box-shadow: 0 0 10px rgba(255,71,87,0.5); }
-        .status-dot { width: 10px; height: 10px; background: #00ff88; border-radius: 50%; display: inline-block; margin-right: 8px; animation: blink 1s infinite; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; overflow: hidden; }
+        .canvas-container { position: relative; width: 100%; height: 120px; background: #1E293B; border-radius: 1.5rem; overflow: hidden; }
+        #waveCanvas { width: 100%; height: 100%; }
+        .pitch-indicator { transition: background-color 0.2s ease; }
     </style>
 </head>
-<body>
+<body class="flex justify-center items-center min-h-screen p-6">
+<div id="startOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-10 text-center">
+    <button onclick="initEngine()" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-6 px-10 rounded-[2.5rem] text-xl shadow-2xl transition-all">START iROOM ENGINE 🎺</button>
+</div>
 
-<div class="tuner-card">
-    <div style="font-size: 14px; color: #aaa; margin-bottom: 20px;">
-        <span class="status-dot"></span>LIVE MONITORING
+<div class="w-full max-w-[480px] space-y-4">
+    <div class="canvas-container shadow-inner border border-slate-700">
+        <canvas id="waveCanvas"></canvas>
     </div>
-    <div id="freq">-- Hz</div>
-    <div id="note">--</div>
-    <div class="meter-container">
-        <div class="meter-bg"></div>
-        <div class="center-line"></div>
-        <div id="needle"></div>
+
+    <div id="mainCard" class="pitch-indicator bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl border border-slate-800">
+        <div class="flex justify-between items-center mb-2">
+            <span id="statusLabel" class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Perfect Pitch</span>
+            <div id="connIndicator" class="w-2 h-2 rounded-full bg-slate-700"></div>
+        </div>
+        <div class="flex items-center justify-between">
+            <div class="flex items-baseline gap-1">
+                <div id="accuracyDisplay" class="text-6xl font-black tracking-tighter text-white">00</div>
+                <div class="text-xl font-bold text-blue-400">%</div>
+            </div>
+            <div class="text-right">
+                <div id="noteDisplay" class="text-5xl font-black text-white leading-none">--</div>
+                <div id="centsDisplay" class="text-xs font-bold text-slate-400 uppercase mt-1">0 cents</div>
+            </div>
+        </div>
     </div>
-    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #555; margin-top: 10px;">
-        <span>-50</span><span>0</span><span>+50</span>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div id="metroArea" onclick="toggleMetronome()" class="bg-white p-6 rounded-[2rem] text-slate-900 shadow-xl cursor-pointer">
+            <span class="text-[10px] font-black text-blue-600 uppercase block italic mb-2">METRONOME</span>
+            <div id="bpmDisplay" class="text-4xl font-black tracking-tighter">120</div>
+        </div>
+        <div class="bg-slate-800 p-6 rounded-[2rem] border border-slate-700">
+            <span class="text-[10px] font-black text-slate-400 uppercase block italic mb-2">FREQUENCY</span>
+            <div id="hzDisplay" class="text-3xl font-black tracking-tighter text-blue-400">0.0<span class="text-xs ml-1 uppercase">Hz</span></div>
+        </div>
     </div>
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxp4NNIVp_2uT5VOXgkzlcfcukLvD4eAnp9qGHMfiGKt5liCi6hrY6VKEKrRLZRupZCwA/exec";
-    const user = "iROOM_Tester";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
+    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, nextTickTime = 0, currentPitch = 0, currentNote = "--", cents = 0;
+    const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    let canvas, ctx;
 
-    let audioCtx, analyser, dataArray;
-    let lastSend = 0;
-
-    async function startTuner() {
+    async function initEngine() {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const source = audioCtx.createMediaStreamSource(stream);
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 2048;
-        dataArray = new Float32Array(analyser.fftSize);
-        source.connect(analyser);
-        update();
+        const src = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser);
+        document.getElementById('startOverlay').classList.add('hidden');
+        canvas = document.getElementById('waveCanvas'); ctx = canvas.getContext('2d');
+        resizeCanvas(); drawWave(); updateLoop();
     }
 
-    function update() {
-        analyser.getFloatTimeDomainData(dataArray);
-        let pitch = autoCorrelate(dataArray, audioCtx.sampleRate);
+    function resizeCanvas() { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }
 
-        if (pitch !== -1) {
-            let noteNum = 12 * (Math.log(pitch / 440) / Math.log(2)) + 69;
-            let notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-            let noteIndex = Math.round(noteNum) % 12;
-            let diff = Math.round((noteNum - Math.round(noteNum)) * 100);
-
-            document.getElementById('note').innerText = notes[noteIndex];
-            document.getElementById('freq').innerText = pitch.toFixed(1) + " Hz";
-            document.getElementById('needle').style.left = (50 + diff) + "%";
-
-            // 0.5초마다 선생님 화면으로 데이터 전송
-            const now = Date.now();
-            if (now - lastSend > 500) {
-                const payload = { pitch: pitch, note: notes[noteIndex], acc: diff };
-                const script = document.createElement('script');
-                script.src = `${GAS_URL}?mode=update_status&user=${user}&data=${encodeURIComponent(JSON.stringify(payload))}&callback=done`;
-                document.head.appendChild(script);
-                lastSend = now;
-            }
+    function drawWave() {
+        requestAnimationFrame(drawWave);
+        const timeData = new Float32Array(analyser.frequencyBinCount);
+        analyser.getFloatTimeDomainData(timeData);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 3; ctx.strokeStyle = '#3b82f6'; ctx.beginPath();
+        let sliceWidth = canvas.width / timeData.length, x = 0;
+        for(let i=0; i<timeData.length; i++) {
+            let v = timeData[i] * 0.8, y = (v + 1) / 2 * canvas.height;
+            if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y); x += sliceWidth;
         }
-        requestAnimationFrame(update);
+        ctx.stroke();
     }
 
-    function done(res) { console.log("Sent"); }
-
-    function autoCorrelate(buf, sampleRate) {
-        let size = buf.length, rms = 0;
-        for (var i=0; i<size; i++) rms += buf[i]*buf[i];
-        if (Math.sqrt(rms/size) < 0.01) return -1;
-        // (간략화된 피치 검출 로직 - 어제 사용하시던 라이브러리가 있다면 적용 가능)
-        return 440; 
+    function updateLoop() {
+        analyser.getFloatTimeDomainData(buf);
+        let p = autoCorrelate(buf, audioCtx.sampleRate);
+        if(p !== -1) {
+            currentPitch = Math.round(p);
+            let nNum = 12 * (Math.log(p/440)/Math.log(2)) + 69;
+            let rounded = Math.round(nNum);
+            currentNote = noteStrings[rounded % 12];
+            cents = Math.round((nNum - rounded) * 100);
+            
+            updateVisuals(cents);
+            document.getElementById('hzDisplay').innerHTML = `${currentPitch}<span class="text-xs ml-1 uppercase">Hz</span>`;
+            document.getElementById('noteDisplay').innerText = currentNote;
+            document.getElementById('centsDisplay').innerText = `${cents > 0 ? '+' : ''}${cents} cents`;
+        }
+        requestAnimationFrame(updateLoop);
     }
 
-    window.onclick = () => { if(!audioCtx) startTuner(); };
+    function updateVisuals(c) {
+        const card = document.getElementById('mainCard');
+        const label = document.getElementById('statusLabel');
+        if (Math.abs(c) < 10) { 
+            card.style.backgroundColor = '#064e3b'; label.innerText = "Perfect Pitch"; 
+        } else if (c >= 10) { 
+            card.style.backgroundColor = '#78350f'; label.innerText = "Too High (Sharp)";
+        } else { 
+            card.style.backgroundColor = '#1e3a8a'; label.innerText = "Too Low (Flat)";
+        }
+    }
+
+    function autoCorrelate(buf, sr) {
+        let rms = 0; for (let i=0; i<buf.length; i++) rms += buf[i]*buf[i];
+        if (Math.sqrt(rms/buf.length) < 0.02) return -1;
+        let c = new Float32Array(buf.length);
+        for (let i=0; i<buf.length; i++) for (let j=0; j<buf.length-i; j++) c[i] += buf[j]*buf[j+i];
+        let d = 0; while (c[d] > c[d+1]) d++;
+        let maxval = -1, maxpos = -1;
+        for (let i=d; i<buf.length; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } }
+        return sr / maxpos;
+    }
+
+    function toggleMetronome() { isMetroOn = !isMetroOn; document.getElementById('metroArea').classList.toggle('ring-4'); }
+
+    function syncStatus() {
+        if (!audioCtx) return;
+        const data = { b: bpm, n: currentNote, p: currentPitch, a: document.getElementById('accuracyDisplay').innerText, c: cents };
+        const script = document.createElement('script');
+        script.src = `${GAS_URL}?mode=update_status&user=S1&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
+        document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 500);
+    }
+    setInterval(syncStatus, 800); window.cb_void = () => {};
 </script>
 </body>
 </html>
