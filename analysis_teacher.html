@@ -3,49 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iROOM MONITOR - Teacher PRO</title>
+    <title>iROOM MONITOR - Ultra Smooth</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background-color: #080C14; color: white; overflow: hidden; }
-        .data-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        .grade-text { transition: color 0.4s ease; }
-        .meter-bar { height: 8px; background: rgba(51, 65, 85, 0.3); border-radius: 4px; overflow: hidden; }
-        #gradeBar { height: 100%; width: 0%; transition: width 0.4s ease, background-color 0.4s ease; }
-        
-        /* 등급별 배경 및 색상 정의 */
-        .bg-grade-a { background-color: #064e3b; color: #10b981; } /* 초록 */
-        .bg-grade-b { background-color: #422006; color: #f59e0b; } /* 황색 */
-        .bg-grade-c { background-color: #451a03; color: #f97316; } /* 오렌지 */
-        .bg-grade-f { background-color: #450a0a; color: #ef4444; } /* 빨강 */
+        body { font-family: 'Pretendard', sans-serif; background-color: #05070A; color: white; overflow: hidden; }
+        .data-card { transition: background-color 0.6s ease; }
+        .meter-bar { height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; }
+        #gradeBar { height: 100%; width: 0%; transition: width 0.5s ease, background-color 0.5s ease; }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
-<div class="w-full max-w-[480px] space-y-4">
+<div class="w-full max-w-[480px] space-y-6">
     <div class="flex justify-between items-center px-4">
         <div>
             <h1 class="text-2xl font-black italic tracking-tighter text-blue-500">iROOM MONITOR</h1>
-            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mt-1">Ready to Sync</p>
+            <p id="targetLabel" class="text-[10px] font-bold text-slate-600 uppercase mt-1 italic">Initializing...</p>
         </div>
-        <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500 animate-pulse">Wait</div>
+        <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500">OFFLINE</div>
     </div>
 
-    <div id="m-card" class="data-card bg-slate-900 rounded-[3.5rem] p-12 shadow-2xl border border-slate-800/50 relative overflow:hidden">
-        <div class="relative z-10 text-center">
-            <span class="text-[11px] font-black text-blue-400 uppercase italic mb-4 block tracking-[0.2em]">Live Performance Note</span>
-            <div id="m-note" class="text-9xl font-black tracking-tighter leading-none mb-4 text-white">--</div>
-            <div id="m-detail" class="text-sm font-bold text-slate-400 uppercase tracking-widest">Waiting for sound...</div>
-        </div>
+    <div id="m-card" class="data-card bg-slate-900 rounded-[3.5rem] p-12 border border-white/5 text-center shadow-2xl">
+        <span class="text-[11px] font-black text-blue-400 uppercase italic mb-6 block tracking-[0.3em] opacity-60">Live Note Analysis</span>
+        <div id="m-note" class="text-9xl font-black tracking-tighter leading-none mb-6 text-white">--</div>
+        <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest italic">Wait for sound</div>
         <div class="meter-bar mt-10"><div id="gradeBar"></div></div>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-        <div id="g-card" class="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 transition-all duration-500">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Accuracy</span>
-            <div id="m-acc" class="text-5xl font-black tracking-tighter grade-text">--</div>
+        <div id="g-card" class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5">
+            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Accuracy</span>
+            <div id="m-acc" class="text-6xl font-black tracking-tighter">--</div>
         </div>
-        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 text-right">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Frequency</span>
+        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 text-right">
+            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Frequency</span>
             <div id="m-pitch" class="text-4xl font-black tracking-tighter text-blue-500">--</div>
         </div>
     </div>
@@ -53,75 +44,88 @@
 
 <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyU7gELoY3nCyXlWaE2LTTJGt69IMf-kWLo4YD79WHFaujB-ceNjuH70UfWNZKPaCXl7g/exec";
-    
     const urlParams = new URLSearchParams(window.location.search);
     const targetUser = urlParams.get('user') || 'S1';
     document.getElementById('targetLabel').innerText = `Monitoring: ${targetUser}`;
 
+    let isRequesting = false;
+
     function fetchStudentData() {
+        if (isRequesting) return; // 이미 요청 중이면 중복 요청 방지 (버벅임의 원인!)
+        isRequesting = true;
+
         const script = document.createElement('script');
-        // 딜레이 개선을 위한 타임스탬프 및 호출 최적화
         script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb_monitor&_=${Date.now()}`;
+        
+        script.onerror = () => {
+            isRequesting = false;
+            setTimeout(fetchStudentData, 1000); // 실패 시 1초 후 재시도
+        };
+
         document.head.appendChild(script);
-        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 450);
+        // 메모리 관리를 위해 2초 후 스크립트 태그 삭제
+        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 2000);
     }
     
     window.cb_monitor = function(res) {
-        if (!res || !res.data) return;
+        isRequesting = false; // 응답을 받았으므로 다음 요청 가능 상태로 변경
+        
+        if (!res || !res.data) {
+            setTimeout(fetchStudentData, 500);
+            return;
+        }
         
         try {
             const s = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
             
-            // 1. 음정 및 주파수 업데이트
+            // 텍스트 업데이트
             const noteData = s.n || "--";
             document.getElementById('m-note').innerText = noteData.split(' ')[0];
             document.getElementById('m-detail').innerText = noteData;
             document.getElementById('m-pitch').innerText = s.p ? s.p + "Hz" : "--";
             
-            // 2. 등급(Accuracy) 업데이트
-            const gradeData = s.a || "--";
-            const grade = gradeData.split(' ')[0];
+            const fullGrade = s.a || "F (0%)";
+            const grade = fullGrade.split(' ')[0];
             document.getElementById('m-acc').innerText = grade;
             
-            const mainCard = document.getElementById('m-card');
-            const gradeCard = document.getElementById('g-card');
-            const gradeText = document.getElementById('m-acc');
-            const bar = document.getElementById('gradeBar');
+            // 시각 효과 업데이트
+            updateUI(grade);
+
             const conn = document.getElementById('connIndicator');
-
-            // 3. 등급별 그라데이션 및 색상 로직 적용
-            if (grade.includes("A")) {
-                // 초록 계열
-                mainCard.style.backgroundColor = '#064e3b';
-                gradeText.style.color = '#10b981';
-                bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
-            } else if (grade.includes("B")) {
-                // 황색 계열 (초록과 오렌지 사이)
-                mainCard.style.backgroundColor = '#422006';
-                gradeText.style.color = '#f59e0b';
-                bar.style.width = "75%"; bar.style.backgroundColor = "#f59e0b";
-            } else if (grade.includes("C")) {
-                // 오렌지 계열 (오렌지와 빨강 사이)
-                mainCard.style.backgroundColor = '#451a03';
-                gradeText.style.color = '#f97316';
-                bar.style.width = "50%"; bar.style.backgroundColor = "#f97316";
-            } else if (grade === "F") {
-                // 빨간 계열
-                mainCard.style.backgroundColor = '#450a0a';
-                gradeText.style.color = '#ef4444';
-                bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
-            }
-
             conn.innerText = "Live";
-            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase text-green-500 animate-none";
+            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase text-green-500";
             
-        } catch (e) {
-            console.error("Sync Error", e);
-        }
+        } catch (e) { console.error(e); }
+
+        // 응답을 처리한 후 0.3초 뒤에 다음 데이터 요청 (가장 부드러운 속도)
+        setTimeout(fetchStudentData, 300);
     };
+
+    function updateUI(grade) {
+        const mainCard = document.getElementById('m-card');
+        const gradeText = document.getElementById('m-acc');
+        const bar = document.getElementById('gradeBar');
+
+        if (grade.includes("A")) {
+            mainCard.style.backgroundColor = '#064e3b';
+            gradeText.style.color = '#10b981';
+            bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
+        } else if (grade.includes("B")) {
+            mainCard.style.backgroundColor = '#422006';
+            gradeText.style.color = '#fbbf24';
+            bar.style.width = "75%"; bar.style.backgroundColor = "#fbbf24";
+        } else if (grade.includes("C")) {
+            mainCard.style.backgroundColor = '#431407';
+            gradeText.style.color = '#f97316';
+            bar.style.width = "50%"; bar.style.backgroundColor = "#f97316";
+        } else {
+            mainCard.style.backgroundColor = '#450a0a';
+            gradeText.style.color = '#ef4444';
+            bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
+        }
+    }
     
-    // 0.5초 간격으로 더 빠르게 체크
-    setInterval(fetchStudentData, 500);
+    // 첫 실행
     fetchStudentData();
 </script>
 </body>
