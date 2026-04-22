@@ -25,17 +25,17 @@
 
     <div id="mainCard" class="pitch-indicator bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl border border-slate-800">
         <div class="flex justify-between items-center mb-2">
-            <span id="statusLabel" class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">Perfect Pitch</span>
+            <span id="statusLabel" class="text-[10px] font-black text-blue-400 uppercase italic tracking-widest">iROOM Real-time Analysis</span>
             <div id="connIndicator" class="w-2 h-2 rounded-full bg-slate-700"></div>
         </div>
         <div class="flex items-center justify-between">
             <div class="flex items-baseline gap-1">
                 <div id="accuracyDisplay" class="text-7xl font-black tracking-tighter text-white">--</div>
-                <div class="text-xl font-bold text-blue-400">Grade</div>
+                <div class="text-xl font-bold text-blue-400 ml-2">Grade</div>
             </div>
             <div class="text-right">
                 <div id="noteDisplay" class="text-5xl font-black text-white leading-none">--</div>
-                <div id="centsDisplay" class="text-xs font-bold text-slate-400 uppercase mt-1">0 cents</div>
+                <div id="hzDisplay" class="text-sm font-bold text-slate-400 mt-2">0Hz</div>
             </div>
         </div>
     </div>
@@ -46,21 +46,20 @@
             <div id="bpmDisplay" class="text-4xl font-black tracking-tighter">120</div>
         </div>
         <div class="bg-slate-800 p-6 rounded-[2rem] border border-slate-700">
-            <span class="text-[10px] font-black text-slate-400 uppercase block italic mb-2">FREQUENCY</span>
-            <div id="hzDisplay" class="text-3xl font-black tracking-tighter text-blue-400">0.0<span class="text-xs ml-1 uppercase">Hz</span></div>
+            <span class="text-[10px] font-black text-slate-400 uppercase block italic mb-2">CENTS</span>
+            <div id="centsDisplay" class="text-3xl font-black tracking-tighter text-blue-400">0</div>
         </div>
     </div>
 </div>
 
 <script>
-    // 1. 대표님 GAS 주소
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyi0kCSwVFqw6U8rqH2jeqdlBDQEdVqZ_bqJNsSIuLoYymxyXTWl2ZWGlUVLP0K0125ZQ/exec";
+    // 1. 대표님이 새로 배포하신 GAS 주소 적용 완료
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyU7gELoY3nCyXlWaE2LTTJGt69IMf-kWLo4YD79WHFaujB-ceNjuH70UfWNZKPaCXl7g/exec";
     
-    // 2. URL 파라미터 사용자 인식
     const urlParams = new URLSearchParams(window.location.search);
     const user = urlParams.get('user') || 'iROOM_Tester';
 
-    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120;
+    let audioCtx, analyser, buf = new Float32Array(2048), bpm = 120;
     let currentPitch = 0, currentNote = "--", accuracyScore = 0, currentGrade = "F"; 
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     let canvas, ctx;
@@ -91,7 +90,7 @@
         ctx.stroke();
     }
 
-    // 대표님 요청 등급 기준 적용
+    // 대표님 요청 등급 기준 반영
     function getGrade(score) {
         if (score >= 95) return "A+";
         if (score >= 90) return "A";
@@ -111,7 +110,7 @@
             let rounded = Math.round(nNum);
             currentNote = noteStrings[rounded % 12];
             
-            // 근접도 점수화 (정가운데 일치 시 100점)
+            // 근접도 점수화
             let diff = Math.abs(nNum - rounded);
             accuracyScore = Math.round((1 - (diff * 2)) * 100); 
             if(accuracyScore < 0) accuracyScore = 0;
@@ -119,11 +118,11 @@
             currentGrade = getGrade(accuracyScore);
 
             document.getElementById('accuracyDisplay').innerText = currentGrade;
-            document.getElementById('hzDisplay').innerHTML = `${currentPitch}<span class="text-xs ml-1 uppercase">Hz</span>`;
+            document.getElementById('hzDisplay').innerText = `${currentPitch}Hz`;
             document.getElementById('noteDisplay').innerText = currentNote;
             
             let cents = Math.round((nNum - rounded) * 100);
-            document.getElementById('centsDisplay').innerText = `${cents > 0 ? '+' : ''}${cents} cents`;
+            document.getElementById('centsDisplay').innerText = cents;
             updateVisuals(cents);
         } else {
             currentPitch = 0;
@@ -135,14 +134,9 @@
 
     function updateVisuals(c) {
         const card = document.getElementById('mainCard');
-        const label = document.getElementById('statusLabel');
-        if (Math.abs(c) < 10) { 
-            card.style.backgroundColor = '#064e3b'; label.innerText = "Perfect Pitch"; 
-        } else if (c >= 10) { 
-            card.style.backgroundColor = '#78350f'; label.innerText = "Too High (Sharp)";
-        } else { 
-            card.style.backgroundColor = '#1e3a8a'; label.innerText = "Too Low (Flat)";
-        }
+        if (Math.abs(c) < 10) card.style.backgroundColor = '#064e3b';
+        else if (c >= 10) card.style.backgroundColor = '#78350f';
+        else card.style.backgroundColor = '#1e3a8a';
     }
 
     function autoCorrelate(buf, sr) {
@@ -156,15 +150,14 @@
         return sr / maxpos;
     }
 
-    function toggleMetronome() { isMetroOn = !isMetroOn; document.getElementById('metroArea').classList.toggle('ring-4'); }
-
     function syncStatus() {
         if (!audioCtx || currentPitch === 0 || accuracyScore === 0) return;
         
+        // 시트로 보내는 데이터 구성 (GAS 수정본에 맞춰 문자열로 전송)
         const data = { 
             b: bpm,
-            a: `${currentGrade} (${accuracyScore}%)`, // 등급과 %를 동시에 시트로!
-            n: currentNote,
+            a: currentGrade + " (" + accuracyScore + "%)", 
+            n: currentNote + " (" + currentPitch + "Hz)",
             p: currentPitch
         };
 
