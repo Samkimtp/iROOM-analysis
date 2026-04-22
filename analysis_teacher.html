@@ -10,7 +10,7 @@
         body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; }
         .data-card { transition: background-color 0.3s ease, transform 0.2s ease; }
         .meter-bar { height: 4px; background: #334155; border-radius: 2px; overflow: hidden; margin-top: 8px; }
-        #centsBar { height: 100%; width: 50%; transition: width 0.3s ease, background-color 0.3s ease; margin-left: 25%; }
+        #centsBar { height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease; }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
@@ -23,12 +23,14 @@
     <div id="m-card" class="data-card bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl border border-slate-800">
         <div class="flex justify-between items-start">
             <div>
-                <span class="text-[10px] font-black text-blue-400 uppercase italic mb-2 block">Accuracy</span>
-                <div class="flex items-baseline gap-1"><div id="m-acc" class="text-7xl font-black tracking-tighter">00</div><div class="text-xl font-bold text-blue-400">%</div></div>
+                <span class="text-[10px] font-black text-blue-400 uppercase italic mb-2 block">Accuracy Grade</span>
+                <div class="flex items-baseline gap-1">
+                    <div id="m-acc" class="text-7xl font-black tracking-tighter">--</div>
+                </div>
             </div>
             <div class="text-right">
-                <div id="m-note" class="text-6xl font-black leading-none">--</div>
-                <div id="m-cents" class="text-xs font-bold text-slate-400 mt-2">0 cents</div>
+                <div id="m-note" class="text-5xl font-black leading-none">--</div>
+                <div id="m-cents" class="text-xs font-bold text-slate-400 mt-2">Ready</div>
             </div>
         </div>
         <div class="meter-bar mt-6"><div id="centsBar"></div></div>
@@ -47,47 +49,53 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwXed035mJ0V11U75_8Gb-5Bj2YvGIlkwEWjAc163LnxRSqozOpyo7f9ox8RnJFNwv00w/exec";
+    // 1. 대표님이 새로 배포하신 최신 GAS 주소로 교체
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyU7gELoY3nCyXlWaE2LTTJGt69IMf-kWLo4YD79WHFaujB-ceNjuH70UfWNZKPaCXl7g/exec";
+    
+    // 학생 페이지와 동일한 사용자명을 감시 (기본값 S1 대신 iROOM_Tester)
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUser = urlParams.get('user') || 'iROOM_Tester';
     
     function fetchStudentData() {
         const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=get_status&user=S1&callback=cb_monitor&_ts=${Date.now()}`;
+        script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb_monitor&_ts=${Date.now()}`;
         document.head.appendChild(script);
-        setTimeout(() => document.head.removeChild(script), 400);
+        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 400);
     }
     
     window.cb_monitor = function(res) {
         if (!res || !res.data) return;
         const s = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
         
+        // 데이터 파싱 및 UI 업데이트
         document.getElementById('m-bpm').innerText = s.b || "--";
         document.getElementById('m-note').innerText = s.n || "--";
-        document.getElementById('m-acc').innerText = (s.a || "00").padStart(2, '0');
-        document.getElementById('m-pitch').innerText = s.p ? `${s.p}Hz` : "--";
-        document.getElementById('m-cents').innerText = `${s.c > 0 ? '+' : ''}${s.c || 0} cents`;
         
-        // 시각적 반응 연동
+        // [수정] 이제 등급(A+, B 등)이 들어오므로 형식을 맞춥니다.
+        document.getElementById('m-acc').innerText = s.a ? s.a.split(' ')[0] : "--"; 
+        document.getElementById('m-pitch').innerText = s.p ? `${s.p}Hz` : "--";
+        
+        // 시각적 반응 (색상 변경)
         const card = document.getElementById('m-card');
         const bar = document.getElementById('centsBar');
-        const c = s.c || 0;
-        
-        // 게이지 위치 계산 (중앙에서 좌우로)
-        bar.style.width = Math.abs(c) + "%";
-        bar.style.marginLeft = c >= 0 ? "50%" : (50 - Math.abs(c)) + "%";
+        const grade = s.a || "";
 
-        if (Math.abs(c) < 10) {
-            card.style.backgroundColor = '#064e3b'; bar.style.backgroundColor = '#10b981';
-        } else if (c >= 10) {
-            card.style.backgroundColor = '#78350f'; bar.style.backgroundColor = '#f59e0b';
+        if (grade.includes("A")) {
+            card.style.backgroundColor = '#064e3b'; bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
+        } else if (grade.includes("B")) {
+            card.style.backgroundColor = '#78350f'; bar.style.width = "70%"; bar.style.backgroundColor = "#f59e0b";
+        } else if (grade.includes("C")) {
+            card.style.backgroundColor = '#1e3a8a'; bar.style.width = "40%"; bar.style.backgroundColor = "#3b82f6";
         } else {
-            card.style.backgroundColor = '#1e3a8a'; bar.style.backgroundColor = '#3b82f6';
+            card.style.backgroundColor = '#1e293b'; bar.style.width = "10%"; bar.style.backgroundColor = "#64748b";
         }
         
         const conn = document.getElementById('connIndicator');
         conn.innerText = "Live"; conn.classList.replace('text-red-500', 'text-green-500');
     };
     
-    setInterval(fetchStudentData, 500); fetchStudentData();
+    setInterval(fetchStudentData, 1000); // 1초 간격 모니터링
+    fetchStudentData();
 </script>
 </body>
 </html>
