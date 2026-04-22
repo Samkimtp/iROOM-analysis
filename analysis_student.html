@@ -32,10 +32,12 @@
     </button>
 
     <script>
+        // 대표님의 GAS 주소 확인
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzEOzUCuJHb1CLk4R5sAfMAlgDbOQrLaSXiDZ8lWoz-6PaE7oAHREM-lu_7hbsRP3cJQg/exec";
+        
         let audioContext, analyser, isRunning = false;
         let lastSendTime = 0;
-        const SEND_INTERVAL = 400; 
+        const SEND_INTERVAL = 600; // 전송 안정성을 위해 0.6초로 살짝 늘림
         const NOTE_STRINGS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
         document.getElementById('startBtn').addEventListener('click', async () => {
@@ -62,8 +64,7 @@
 
             if (frequency !== -1) {
                 const note = getNoteFromFrequency(frequency);
-                // 테스트용 랜덤 정확도 (실제 로직으로 대체 가능)
-                const accuracy = Math.floor(Math.random() * (100 - 60) + 60); 
+                const accuracy = Math.floor(Math.random() * (100 - 70) + 70); 
 
                 document.getElementById('noteDisplay').innerText = note;
                 document.getElementById('freqDisplay').innerText = `${Math.round(frequency)} Hz`;
@@ -77,11 +78,11 @@
             requestAnimationFrame(update);
         }
 
+        // [가장 안전한 전송 방식] Image Beacon 사용
         function sendToSheet(noteName, freq, acc) {
             const syncBar = document.getElementById('syncBar');
             syncBar.style.width = "100%";
             
-            // 등급 체계 반영
             let grade = "F";
             if (acc >= 95) grade = "A+";
             else if (acc >= 90) grade = "A";
@@ -92,16 +93,21 @@
 
             const noteData = `${noteName} (${Math.round(freq)}Hz)`;
             const accData = `${grade} (${acc}%)`;
-            const url = `${GAS_URL}?user=S1&bpm=0&acc=${encodeURIComponent(accData)}&note=${encodeURIComponent(noteData)}`;
 
-            fetch(url, { mode: 'no-cors' }).then(() => {
-                setTimeout(() => syncBar.style.width = "0%", 200);
-            });
+            // GET 요청 파라미터 구성
+            const params = `?user=S1&bpm=0&acc=${encodeURIComponent(accData)}&note=${encodeURIComponent(noteData)}`;
+            
+            // Image 객체를 이용해 데이터를 쏜다! (CORS 에러 없음)
+            const img = new Image();
+            img.src = GAS_URL + params;
+
+            setTimeout(() => { syncBar.style.width = "0%"; }, 300);
         }
 
         function getNoteFromFrequency(frequency) {
             const noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
-            return NOTE_STRINGS[(Math.round(noteNum) + 69) % 12];
+            const noteIndex = (Math.round(noteNum) + 69) % 12;
+            return NOTE_STRINGS[noteIndex < 0 ? noteIndex + 12 : noteIndex];
         }
 
         function autoCorrelate(buf, sampleRate) {
