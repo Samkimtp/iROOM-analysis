@@ -8,7 +8,6 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
         body { font-family: 'Pretendard', sans-serif; background-color: #05070A; color: white; overflow: hidden; }
-        .data-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         #gradeBar { height: 100%; width: 0%; transition: width 0.3s ease, background-color 0.3s ease; }
     </style>
 </head>
@@ -22,65 +21,54 @@
         <div id="connIndicator" class="bg-slate-900 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500">Standby</div>
     </div>
 
-    <div id="m-card" class="data-card bg-slate-900 rounded-[3.5rem] p-12 border border-white/5 text-center shadow-2xl">
-        <span class="text-[11px] font-black text-blue-400 uppercase italic mb-6 block tracking-[0.3em] opacity-60">Live Performance Note</span>
+    <div id="m-card" class="bg-slate-900 rounded-[3.5rem] p-12 border border-white/5 text-center shadow-2xl transition-all duration-300">
+        <span class="text-[11px] font-black text-blue-400 uppercase italic mb-6 block tracking-[0.3em] opacity-60">Performance Note</span>
         <div id="m-note" class="text-9xl font-black tracking-tighter leading-none mb-6 text-white">--</div>
-        <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest italic">Waiting for student...</div>
+        <div id="m-detail" class="text-sm font-bold text-slate-500 uppercase tracking-widest italic">Waiting...</div>
         <div class="h-2.5 w-full bg-white/5 rounded-full mt-10 overflow-hidden"><div id="gradeBar"></div></div>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-        <div id="g-card" class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Accuracy Grade</span>
+        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5">
+            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic tracking-widest">Grade</span>
             <div id="m-acc" class="text-6xl font-black tracking-tighter">--</div>
         </div>
         <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-white/5 text-right flex flex-col justify-between">
-            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic tracking-widest text-right">Frequency</span>
+            <span class="text-[10px] font-black text-blue-400 uppercase mb-2 block italic tracking-widest">Pitch</span>
             <div id="m-pitch" class="text-4xl font-black tracking-tighter">--</div>
         </div>
     </div>
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzEOzUCuJHb1CLk4R5sAfMAlgDbOQrLaSXiDZ8lWoz-6PaE7oAHREM-lu_7hbsRP3cJQg/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzop2ZAe4sv5FGaT4DSqEdsJMEmQpdKzuhk6qaNsnHIFe91BnrRBDH8W7m-gIAVHRopFA/exec";
     let baseRow = -1;
-    let isProcessing = false;
 
     function fetchUpdate() {
-        if (isProcessing) return;
-        isProcessing = true;
         const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=get_status&user=S1&callback=cb&_=${Date.now()}`;
+        script.src = `${GAS_URL}?mode=get_status&callback=cb&_=${Date.now()}`;
         document.head.appendChild(script);
-        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 1500);
+        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 1000);
     }
 
     window.cb = function(res) {
-        isProcessing = false;
-        if (!res || !res.data) { setTimeout(fetchUpdate, 300); return; }
+        if (!res || !res.data) return;
         const d = res.data;
-        const currentRow = d.r;
-
         if (baseRow === -1) {
-            baseRow = currentRow;
-            document.getElementById('targetLabel').innerText = `Monitoring: S1 (Active)`;
-        } else if (currentRow > baseRow) {
+            baseRow = d.r;
+            document.getElementById('targetLabel').innerText = `Monitoring: Active`;
+        } else if (d.r > baseRow) {
             updateUI(d);
-            const conn = document.getElementById('connIndicator');
-            conn.innerText = "Live";
-            conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500";
+            document.getElementById('connIndicator').innerText = "Live";
+            document.getElementById('connIndicator').className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black text-green-500";
         }
-        setTimeout(fetchUpdate, 200);
     };
 
     function updateUI(d) {
-        const noteText = d.n || "--";
-        const gradeText = d.a || "F (0%)";
-        const grade = gradeText.split(' ')[0];
-
-        document.getElementById('m-note').innerText = noteText.split(' ')[0];
-        document.getElementById('m-detail').innerText = noteText;
-        document.getElementById('m-pitch').innerText = d.p ? d.p + "Hz" : "--";
+        const grade = d.a.split(' ')[0];
+        document.getElementById('m-note').innerText = d.n.split(' ')[0];
+        document.getElementById('m-detail').innerText = d.n;
+        document.getElementById('m-pitch').innerText = d.p + "Hz";
         document.getElementById('m-acc').innerText = grade;
 
         const mainCard = document.getElementById('m-card');
@@ -101,7 +89,7 @@
             bar.style.width = "40%"; bar.style.backgroundColor = "#ef4444";
         }
     }
-    fetchUpdate();
+    setInterval(fetchUpdate, 500);
 </script>
 </body>
 </html>
