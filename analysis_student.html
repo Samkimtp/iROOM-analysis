@@ -53,8 +53,14 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxcTLhzkSvKJ_CpUl2lmuiNxOKaaVLgXo_zEzmP9W5zWFb-E-Br1vxZ-DHcFo9UB88PqA/exec";
-    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, nextTickTime = 0, currentPitch = 0, currentNote = "--", cents = 0;
+    // 1. 대표님이 새로 배포하신 GAS 주소 적용
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyi0kCSwVFqw6U8rqH2jeqdlBDQEdVqZ_bqJNsSIuLoYymxyXTWl2ZWGlUVLP0K0125ZQ/exec";
+    
+    // 2. URL 파라미터에서 사용자 이름 가져오기 (없으면 iROOM_Tester)
+    const urlParams = new URLSearchParams(window.location.search);
+    const user = urlParams.get('user') || 'iROOM_Tester';
+
+    let audioCtx, analyser, buf = new Float32Array(2048), isMetroOn = false, bpm = 120, currentPitch = 0, currentNote = "--", cents = 0;
     const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     let canvas, ctx;
 
@@ -94,6 +100,10 @@
             currentNote = noteStrings[rounded % 12];
             cents = Math.round((nNum - rounded) * 100);
             
+            // 정확도 계산 (단순 예시: 센트 편차를 100% 기준으로 환산)
+            let accuracy = Math.max(0, 100 - Math.abs(cents));
+            document.getElementById('accuracyDisplay').innerText = accuracy;
+
             updateVisuals(cents);
             document.getElementById('hzDisplay').innerHTML = `${currentPitch}<span class="text-xs ml-1 uppercase">Hz</span>`;
             document.getElementById('noteDisplay').innerText = currentNote;
@@ -127,14 +137,27 @@
 
     function toggleMetronome() { isMetroOn = !isMetroOn; document.getElementById('metroArea').classList.toggle('ring-4'); }
 
+    // 3. [중요] GAS가 기대하는 이름(b, a, n, p)으로 데이터 전송
     function syncStatus() {
-        if (!audioCtx) return;
-        const data = { b: bpm, n: currentNote, p: currentPitch, a: document.getElementById('accuracyDisplay').innerText, c: cents };
+        if (!audioCtx || currentPitch === 0) return;
+        
+        const data = { 
+            b: bpm,                                                  // BPM
+            a: document.getElementById('accuracyDisplay').innerText,  // Accuracy
+            n: currentNote,                                          // Note 이름
+            p: currentPitch                                          // 주파수 (Hz)
+        };
+
         const script = document.createElement('script');
-        script.src = `${GAS_URL}?mode=update_status&user=S1&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
-        document.head.appendChild(script); setTimeout(() => document.head.removeChild(script), 500);
+        // user=${user} 로 전송하여 S1 문제를 해결합니다.
+        script.src = `${GAS_URL}?mode=update_status&user=${encodeURIComponent(user)}&data=${encodeURIComponent(JSON.stringify(data))}&callback=cb_void&_=${Date.now()}`;
+        
+        document.head.appendChild(script); 
+        setTimeout(() => { if(document.head.contains(script)) document.head.removeChild(script); }, 500);
     }
-    setInterval(syncStatus, 800); window.cb_void = () => {};
+
+    setInterval(syncStatus, 1000); // 1초 간격 전송
+    window.cb_void = () => {};
 </script>
 </body>
 </html>
