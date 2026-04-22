@@ -3,61 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iROOM MONITOR - Teacher</title>
+    <title>iROOM Analysis - Teacher</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; overflow: hidden; }
-        .data-card { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-        .meter-bar { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 24px; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #0F172A; color: white; }
+        .data-card { transition: background-color 0.5s ease; }
+        .meter-bar { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; margin-top: 20px; }
         #gradeBar { height: 100%; width: 0%; transition: width 0.5s ease, background-color 0.5s ease; }
     </style>
 </head>
 <body class="flex justify-center items-center min-h-screen p-6">
 <div class="w-full max-w-[480px] space-y-4">
     <div class="flex justify-between items-center px-2">
-        <div>
-            <h1 class="text-2xl font-black italic tracking-tighter text-blue-400">iROOM MONITOR</h1>
-            <p id="targetUserLabel" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Monitoring: S1</p>
-        </div>
-        <div id="connIndicator" class="bg-slate-800 px-3 py-1 rounded-full text-[10px] font-black uppercase text-red-500">Wait</div>
+        <div><h1 class="text-2xl font-black italic tracking-tighter text-blue-400 leading-none">iROOM MONITOR</h1><p id="targetLabel" class="text-[10px] font-bold text-slate-500 uppercase mt-1">Monitoring: S1</p></div>
+        <div id="connIndicator" class="bg-slate-800 px-3 py-1 rounded-full text-[10px] font-bold uppercase text-red-500">Wait</div>
     </div>
 
-    <div id="m-card" class="data-card bg-slate-900 rounded-[3rem] p-10 shadow-2xl border border-slate-800">
+    <div id="m-card" class="data-card bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl border border-slate-800">
         <div class="flex justify-between items-start">
             <div>
-                <span class="text-[11px] font-black text-blue-400 uppercase italic mb-3 block">Accuracy Grade</span>
-                <div id="m-acc" class="text-8xl font-black tracking-tighter leading-none">--</div>
+                <span class="text-[10px] font-black text-blue-400 uppercase italic mb-2 block">Accuracy Grade</span>
+                <div id="m-acc" class="text-7xl font-black tracking-tighter leading-none">--</div>
             </div>
             <div class="text-right">
-                <div id="m-note" class="text-6xl font-black text-white leading-none">--</div>
-                <div id="m-detail" class="text-[11px] font-bold text-slate-500 mt-4 uppercase">Ready</div>
+                <div id="m-note" class="text-6xl font-black leading-none text-white">--</div>
+                <div id="m-detail" class="text-[10px] font-bold text-slate-400 mt-2 uppercase italic tracking-wider">Ready to Sync</div>
             </div>
         </div>
-        <div class="meter-bar"><div id="gradeBar"></div></div>
+        <div class="meter-bar mt-6"><div id="gradeBar"></div></div>
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-        <div class="bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-700/50 backdrop-blur-md">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Student BPM</span>
-            <div id="m-bpm" class="text-4xl font-black tracking-tighter">--</div>
+        <div class="bg-slate-800/50 p-6 rounded-[2rem] border border-slate-700">
+            <span class="text-[10px] font-black text-slate-400 uppercase mb-2 block italic">Student BPM</span>
+            <div id="m-bpm" class="text-4xl font-black tracking-tighter text-white">--</div>
         </div>
-        <div class="bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-700/50 backdrop-blur-md text-right">
-            <span class="text-[10px] font-black text-slate-500 uppercase mb-2 block italic">Frequency</span>
-            <div id="m-pitch" class="text-3xl font-black tracking-tighter text-blue-400">--</div>
+        <div class="bg-slate-800/50 p-6 rounded-[2rem] border border-slate-700 text-right">
+            <span class="text-[10px] font-black text-slate-400 uppercase mb-2 block italic text-blue-400">Frequency</span>
+            <div id="m-pitch" class="text-3xl font-black tracking-tighter">--</div>
         </div>
     </div>
 </div>
 
 <script>
-    // [중요] 최신 GAS 주소 확인
+    // [중요] 최신 GAS 주소로 통일
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyU7gELoY3nCyXlWaE2LTTJGt69IMf-kWLo4YD79WHFaujB-ceNjuH70UfWNZKPaCXl7g/exec";
     
-    // URL에서 user 파라미터를 읽어옵니다. 없으면 'S1'을 기본으로 감시합니다.
     const urlParams = new URLSearchParams(window.location.search);
     const targetUser = urlParams.get('user') || 'S1';
-    document.getElementById('targetUserLabel').innerText = `Monitoring: ${targetUser}`;
-
+    document.getElementById('targetLabel').innerText = `Monitoring: ${targetUser}`;
+    
     function fetchStudentData() {
         const script = document.createElement('script');
         script.src = `${GAS_URL}?mode=get_status&user=${encodeURIComponent(targetUser)}&callback=cb_monitor&_=${Date.now()}`;
@@ -66,30 +62,29 @@
     }
     
     window.cb_monitor = function(res) {
-        // 데이터가 없거나 형식이 잘못되어도 멈추지 않도록 예외 처리
         if (!res || !res.data) return;
         
         try {
             const s = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
             
+            // 데이터 매핑
             document.getElementById('m-bpm').innerText = s.b || "--";
             
-            // 음정 정보 (예: "C (134Hz)") 처리
-            const noteData = s.n || "--";
-            document.getElementById('m-note').innerText = noteData.split(' ')[0];
-            document.getElementById('m-detail').innerText = noteData;
-            document.getElementById('m-pitch').innerText = s.p ? s.p + "Hz" : "--";
+            // 음정(Note) 표시: "C (134Hz)"에서 앞글자만 추출
+            const noteFull = s.n || "--";
+            document.getElementById('m-note').innerText = noteFull.split(' ')[0];
+            document.getElementById('m-detail').innerText = noteFull;
+            document.getElementById('m-pitch').innerText = s.p ? `${s.p}Hz` : "--";
             
-            // 등급 정보 (예: "A+ (98%)") 처리
-            const gradeData = s.a || "--";
-            const grade = gradeData.split(' ')[0];
+            // 등급(Grade) 표시: "A+ (98%)"에서 등급만 추출
+            const accFull = s.a || "--";
+            const grade = accFull.split(' ')[0];
             document.getElementById('m-acc').innerText = grade;
             
+            // 시각적 반응
             const card = document.getElementById('m-card');
             const bar = document.getElementById('gradeBar');
-            const conn = document.getElementById('connIndicator');
-
-            // 등급별 시각 효과 반영
+            
             if (grade.includes("A")) {
                 card.style.backgroundColor = '#064e3b'; bar.style.width = "100%"; bar.style.backgroundColor = "#10b981";
             } else if (grade.includes("B")) {
@@ -99,13 +94,12 @@
             } else if (grade === "F") {
                 card.style.backgroundColor = '#450a0a'; bar.style.width = "25%"; bar.style.backgroundColor = "#ef4444";
             }
-
-            conn.innerText = "Live";
+            
+            const conn = document.getElementById('connIndicator');
+            conn.innerText = "Live"; 
             conn.className = "bg-green-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase text-green-500";
             
-        } catch (e) {
-            console.error("Data parsing error:", e);
-        }
+        } catch(e) { console.error("Parsing Error", e); }
     };
     
     setInterval(fetchStudentData, 1000);
